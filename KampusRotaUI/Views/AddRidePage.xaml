@@ -38,12 +38,11 @@
                                 </VerticalStackLayout>
                                 <Picker x:Name="FormUniversityPicker"
                                         Grid.Column="2"
-                                        Title="Değiştir"
                                         ItemDisplayBinding="{Binding Name}"
                                         SelectedIndexChanged="OnFormUniversityPickerChanged"
                                         TextColor="#1D9DE5"
                                         FontAttributes="Bold"
-                                        FontSize="9"
+                                        FontSize="12"
                                         HeightRequest="36"
                                         VerticalOptions="Center" />
                             </Grid>
