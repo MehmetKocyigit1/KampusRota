@@ -1,0 +1,61 @@
+# ==========================================
+# Visual Studio / IDE
+# ==========================================
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.lscache
+
+# ==========================================
+# Build Çıktıları (.NET / C#)
+# ==========================================
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+Generated\ Files/
+
+# ==========================================
+# NuGet
+# ==========================================
+*.nupkg
+packages/
+project.lock.json
+project.fragment.lock.json
+
+# ==========================================
+# .NET MAUI / Android / iOS / Windows
+# ==========================================
+*.apk
+*.aab
+*.ipa
+*.xcarchive
+*.app
+*.dSYM
+android/
+*.dex
+
+# ==========================================
+# Loglar ve Geçici Dosyalar
+# ==========================================
+*.log
+*.tmp
+*.temp
+
+# ==========================================
+# Veritabanı ve Yerel Konfigürasyonlar
+# ==========================================
+*.db
+*.sqlite
+appsettings.*.local.json
+
+# ==========================================
+# İşletim Sistemi
+# ==========================================
+.DS_Store
+Thumbs.db
+*.git_bak/
+.git_bak/
+

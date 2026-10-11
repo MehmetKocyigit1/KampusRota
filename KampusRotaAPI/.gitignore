@@ -1,0 +1,17 @@
+# Visual Studio
+.vs/
+
+# Build çıktıları
+bin/
+obj/
+
+# User dosyaları
+*.user
+*.suo
+
+# DB/log
+*.db
+*.log
+
+# Yerel/gizli ayarlar
+appsettings.*.local.json

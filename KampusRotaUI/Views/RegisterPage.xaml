@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="KampusRotaUI.Views.RegisterPage"
+             NavigationPage.HasNavigationBar="False"
+             Background="{StaticResource AppBackgroundBrush}">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="24,34,24,30" Spacing="16">
+
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                <Button Text="Geri"
+                        Clicked="OnLoginNavClicked"
+                        BackgroundColor="#EAF6FD"
+                        BorderColor="#BDDDED"
+                        BorderWidth="1"
+                        TextColor="#111827"
+                        FontAttributes="Bold"
+                        CornerRadius="16"
+                        Padding="16,0"
+                        HeightRequest="40" />
+                <VerticalStackLayout Grid.Column="1" Spacing="1" VerticalOptions="Center">
+                    <Label Text="Hesap oluştur" FontSize="26" FontAttributes="Bold" TextColor="#1D9DE5" />
+                    <Label Text="Kampüs topluluğuna katıl." FontSize="12" TextColor="#6B7280" />
+                </VerticalStackLayout>
+            </Grid>
+
+            <Border BackgroundColor="#EAF6FD" Stroke="#BDDDED" StrokeThickness="1" StrokeShape="RoundRectangle 20" Padding="18">
+                <VerticalStackLayout Spacing="14">
+
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                        <VerticalStackLayout Spacing="6">
+                            <Label Text="Ad" FontSize="12" FontAttributes="Bold" TextColor="#74777D" />
+                            <Border BackgroundColor="#EAF6FD" Stroke="#BDDDED" StrokeShape="RoundRectangle 14" Padding="12,0" HeightRequest="50">
+                                <Entry x:Name="NameEntry" Placeholder="İsim" PlaceholderColor="#9CA3AF" TextColor="#111827" />
+                            </Border>
+                        </VerticalStackLayout>
+
+                        <VerticalStackLayout Grid.Column="1" Spacing="6">
+                            <Label Text="Soyad" FontSize="12" FontAttributes="Bold" TextColor="#74777D" />
+                            <Border BackgroundColor="#EAF6FD" Stroke="#BDDDED" StrokeShape="RoundRectangle 14" Padding="12,0" HeightRequest="50">
+                                <Entry x:Name="SurnameEntry" Placeholder="Soyisim" PlaceholderColor="#9CA3AF" TextColor="#111827" />
+                            </Border>
+                        </VerticalStackLayout>
+                    </Grid>
+
+                    <VerticalStackLayout Spacing="6">
+                        <Label Text="Öğrenci numarası" FontSize="12" FontAttributes="Bold" TextColor="#74777D" />
+                        <Border BackgroundColor="#EAF6FD" Stroke="#BDDDED" StrokeShape="RoundRectangle 14" Padding="12,0" HeightRequest="50">
+                            <Entry x:Name="StudentNoEntry" Placeholder="20XXXXXXXXX" Keyboard="Numeric" PlaceholderColor="#9CA3AF" TextColor="#111827" />
+                        </Border>
+                    </VerticalStackLayout>
+
+                    <!-- Şehir ve Üniversite Seçimi -->
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                        <VerticalStackLayout Spacing="6">
+                            <Label Text="Şehir" FontSize="12" FontAttributes="Bold" TextColor="#74777D" />
+                            <Border BackgroundColor="#EAF6FD" Stroke="#BDDDED" StrokeShape="RoundRectangle 14" Padding="8,0" HeightRequest="50">
+                                <Picker x:Name="CityPicker"
+                                        Title="Şehir Seçin"
+                                        SelectedIndexChanged="OnCitySelectedIndexChanged"
+                                        TextColor="#111827"
+                                        TitleColor="#9CA3AF"
+                                        FontSize="13"
+                                        VerticalOptions="Center" />
+                            </Border>
+                        </VerticalStackLayout>
+
+                        <VerticalStackLayout Grid.Column="1" Spacing="6">
+                            <Label Text="Üniversite" FontSize="12" FontAttributes="Bold" TextColor="#74777D" />
+                            <Border BackgroundColor="#EAF6FD" Stroke="#BDDDED" StrokeShape="RoundRectangle 14" Padding="8,0" HeightRequest="50">
+                                <Picker x:Name="UniversityPicker"
+                                        Title="Üniversite Seçin"
+                                        ItemDisplayBinding="{Binding Name}"
+                                        SelectedIndexChanged="OnUniversitySelectedIndexChanged"
+                                        TextColor="#111827"
+                                        TitleColor="#9CA3AF"
+                                        FontSize="13"
+                                        VerticalOptions="Center" />
+                            </Border>
+                        </VerticalStackLayout>
+                    </Grid>
+
+                    <VerticalStackLayout Spacing="6">
+                        <Label Text="Üniversite e-postası" FontSize="12" FontAttributes="Bold" TextColor="#74777D" />
+                        <Border BackgroundColor="#EAF6FD" Stroke="#BDDDED" StrokeShape="RoundRectangle 14" Padding="12,0" HeightRequest="50">
+                            <Entry x:Name="EmailEntry" Placeholder="isim@universite.edu.tr" Keyboard="Email" PlaceholderColor="#9CA3AF" TextColor="#111827" TextChanged="OnEmailTextChanged" />
+                        </Border>
+                    </VerticalStackLayout>
+
+                    <VerticalStackLayout Spacing="6">
+                        <Label Text="Telefon numarası (isteğe bağlı)" FontSize="12" FontAttributes="Bold" TextColor="#74777D" />
+                        <Border BackgroundColor="#EAF6FD" Stroke="#BDDDED" StrokeShape="RoundRectangle 14" Padding="12,0" HeightRequest="50">
+                            <Entry x:Name="PhoneEntry" Placeholder="05XX XXX XX XX" Keyboard="Telephone" PlaceholderColor="#9CA3AF" TextColor="#111827" />
+                        </Border>
+                    </VerticalStackLayout>
+
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="Cinsiyet seçimi" FontSize="12" FontAttributes="Bold" TextColor="#74777D" />
+                        <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
+                            <Border x:Name="MaleBorder" BackgroundColor="#FFB300" StrokeThickness="0" StrokeShape="RoundRectangle 14" Padding="12,10">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnMaleTapped" />
+                                </Border.GestureRecognizers>
+                                <Label Text="Erkek" TextColor="White" FontAttributes="Bold" HorizontalOptions="Center" FontSize="12" />
+                            </Border>
+
+                            <Border x:Name="FemaleBorder" Grid.Column="1" BackgroundColor="#0F3F35" StrokeThickness="0" StrokeShape="RoundRectangle 14" Padding="12,10">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnFemaleTapped" />
+                                </Border.GestureRecognizers>
+                                <Label Text="Kadın" TextColor="White" FontAttributes="Bold" HorizontalOptions="Center" FontSize="12" />
+                            </Border>
+
+                            <Border x:Name="UnknownBorder" Grid.Column="2" BackgroundColor="#0F3F35" StrokeThickness="0" StrokeShape="RoundRectangle 14" Padding="12,10">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnUnknownTapped" />
+                                </Border.GestureRecognizers>
+                                <Label Text="Gösterme" TextColor="White" FontAttributes="Bold" HorizontalOptions="Center" FontSize="12" />
+                            </Border>
+                        </Grid>
+                    </VerticalStackLayout>
+
+                    <VerticalStackLayout Spacing="6">
+                        <Label Text="Şifre" FontSize="12" FontAttributes="Bold" TextColor="#74777D" />
+                        <Border BackgroundColor="#EAF6FD" Stroke="#BDDDED" StrokeShape="RoundRectangle 14" Padding="12,0" HeightRequest="50">
+                            <Entry x:Name="PasswordEntry" Placeholder="Şifre" IsPassword="True" PlaceholderColor="#9CA3AF" TextColor="#111827" />
+                        </Border>
+                    </VerticalStackLayout>
+
+                    <VerticalStackLayout Spacing="6">
+                        <Label Text="Şifre tekrarı" FontSize="12" FontAttributes="Bold" TextColor="#74777D" />
+                        <Border BackgroundColor="#EAF6FD" Stroke="#BDDDED" StrokeShape="RoundRectangle 14" Padding="12,0" HeightRequest="50">
+                            <Entry x:Name="ConfirmPasswordEntry" Placeholder="Şifrenizi tekrar girin" IsPassword="True" PlaceholderColor="#9CA3AF" TextColor="#111827" />
+                        </Border>
+                    </VerticalStackLayout>
+
+                    <Border BackgroundColor="#DDF1FD" Stroke="#BDDDED" StrokeShape="RoundRectangle 14" Padding="12,8">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                            <CheckBox x:Name="TermsCheckBox" Color="#1D9DE5" VerticalOptions="Center" />
+                            <Label Grid.Column="1" Text="Kullanım koşullarını ve gizlilik politikasını kabul ediyorum." FontSize="11" TextColor="#374151" VerticalOptions="Center" />
+                        </Grid>
+                    </Border>
+
+                    <Button Text="Kayıt ol"
+                            Clicked="OnRegisterClicked"
+                            BackgroundColor="#1D9DE5"
+                            TextColor="White"
+                            FontAttributes="Bold"
+                            CornerRadius="16"
+                            HeightRequest="52"
+                            Margin="0,4,0,0" />
+                </VerticalStackLayout>
+            </Border>
+
+            <HorizontalStackLayout HorizontalOptions="Center" Spacing="4">
+                <Label Text="Zaten hesabın var mı?" FontSize="13" TextColor="#6B7280" />
+                <Label Text="Giriş yap" FontSize="13" FontAttributes="Bold" TextColor="#1D9DE5">
+                    <Label.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnLoginNavClicked" />
+                    </Label.GestureRecognizers>
+                </Label>
+            </HorizontalStackLayout>
+
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

@@ -1,0 +1,3007 @@
+<!doctype html>
+<html lang="tr">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>KampusRota Harita</title>
+
+    <!-- MapLibre GL JS -->
+    <link href="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: #EAF6FD;
+        }
+
+        #map {
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* BİRLEŞİK PİN VE ETİKET TASARIMI */
+        .campus-marker {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+            pointer-events: auto;
+            transition: transform 0.18s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .campus-marker:hover,
+        .campus-marker:active,
+        .campus-marker:focus {
+            transform: scale(1.15) translateY(-4px);
+            z-index: 9999 !important;
+            outline: none;
+        }
+
+        .marker-tag {
+            background: #ffffff;
+            color: #102A43;
+            padding: 4px 9px;
+            border-radius: 9px;
+            font-size: 11px;
+            font-weight: 700;
+            box-shadow: 0 3px 10px rgba(16, 42, 67, 0.28);
+            border: 1px solid rgba(189, 221, 237, 0.9);
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            margin-bottom: 2px;
+            max-width: 180px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .cat-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .tag-title {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .marker-pin {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.35));
+        }
+
+        .pin-svg {
+            width: 26px;
+            height: 34px;
+            display: block;
+        }
+
+        /* KULLANICI MEVCUT KONUM NOKTASI */
+        .user-marker {
+            position: relative;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #007AFF;
+            border: 3px solid white;
+            box-shadow: 0 0 12px rgba(0, 122, 255, 0.8);
+        }
+
+        .user-marker::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(0, 122, 255, 0.2);
+            animation: pulse 1.6s infinite;
+            z-index: -1;
+        }
+
+        @keyframes pulse {
+            0% { transform: translate(-50%, -50%) scale(0.6); opacity: 0.9; }
+            70% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; }
+            100% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; }
+        }
+
+        /* ALT KATEGORİ FİLTRELEME ÇUBUĞU */
+        .filter-bar {
+            position: absolute;
+            bottom: 18px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.94);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border-radius: 24px;
+            box-shadow: 0 4px 20px rgba(16, 42, 67, 0.18);
+            border: 1px solid rgba(189, 221, 237, 0.9);
+            padding: 6px 8px;
+            display: flex;
+            gap: 6px;
+            max-width: 95vw;
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+
+        .filter-bar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .pill {
+            padding: 5px 12px;
+            border-radius: 18px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            white-space: nowrap;
+            background: #EAF6FD;
+            color: #174A72;
+            border: 1px solid #BDDDED;
+            transition: all 0.15s ease;
+            user-select: none;
+        }
+
+        .pill.active {
+            background: #1D9DE5;
+            color: #ffffff;
+            border-color: #1D9DE5;
+            box-shadow: 0 2px 8px rgba(29, 157, 229, 0.35);
+        }
+
+        .pill:active {
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="map"></div>
+
+    <!-- ALT KATEGORİ FİLTRE ÇUBUĞU -->
+    <div class="filter-bar">
+        <div class="pill active" onclick="filterCategory('all', this)">🌟 Tümü</div>
+        <div class="pill" onclick="filterCategory('Kampus', this)">🎓 Kampüs</div>
+        <div class="pill" onclick="filterCategory('Yurt', this)">🏠 Yurtlar</div>
+        <div class="pill" onclick="filterCategory('Ulasim', this)">🚌 Ulaşım</div>
+        <div class="pill" onclick="filterCategory('Sosyal', this)">☕ Sosyal / AVM</div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. TÜM TÜRKİYE ÜNİVERSİTE & ÖĞRENCİ POI KATALOĞU (18 ÜNİVERSİTE)
+        // ==========================================
+        const CAMPUS_CATALOG = [
+  {
+    "id": 1,
+    "name": "Süleyman Demirel Üniversitesi",
+    "city": "Isparta",
+    "lat": 37.8285,
+    "lng": 30.5345,
+    "zoom": 14,
+    "places": [
+      {
+        "locationKey": "dogu-kampusu",
+        "title": "Doğu Kampüsü (Rektörlük & Müh.)",
+        "category": "Kampus",
+        "latitude": 37.8285,
+        "longitude": 30.5345,
+        "description": ""
+      },
+      {
+        "locationKey": "bati-kampusu",
+        "title": "Batı Kampüsü (İİBF & İlahiyat)",
+        "category": "Kampus",
+        "latitude": 37.8294,
+        "longitude": 30.5264,
+        "description": ""
+      },
+      {
+        "locationKey": "100-yil",
+        "title": "100. Yıl Sağlık Yerleşkesi",
+        "category": "Kampus",
+        "latitude": 37.7597,
+        "longitude": 30.5482,
+        "description": ""
+      },
+      {
+        "locationKey": "sdu-tip",
+        "title": "SDÜ Tıp Fakültesi Hastanesi",
+        "category": "Kampus",
+        "latitude": 37.831,
+        "longitude": 30.531,
+        "description": ""
+      },
+      {
+        "locationKey": "erkek-yurdu",
+        "title": "Isparta KYK Erkek Öğrenci Yurdu",
+        "category": "Yurt",
+        "latitude": 37.7823,
+        "longitude": 30.5619,
+        "description": ""
+      },
+      {
+        "locationKey": "mihrihatun-kiz-yurdu",
+        "title": "MihriHatun KYK Kız Yurdu",
+        "category": "Yurt",
+        "latitude": 37.855,
+        "longitude": 30.5315,
+        "description": ""
+      },
+      {
+        "locationKey": "bediuzzaman-kyk",
+        "title": "Bediüzzaman KYK Yurdu (Doğu Kampüs)",
+        "category": "Yurt",
+        "latitude": 37.835,
+        "longitude": 30.528,
+        "description": ""
+      },
+      {
+        "locationKey": "gulkent-kyk",
+        "title": "Gülkent KYK Kız Yurdu",
+        "category": "Yurt",
+        "latitude": 37.778,
+        "longitude": 30.548,
+        "description": ""
+      },
+      {
+        "locationKey": "otogar",
+        "title": "Isparta Şehirlerarası Otogarı",
+        "category": "Ulasim",
+        "latitude": 37.8103,
+        "longitude": 30.5372,
+        "description": ""
+      },
+      {
+        "locationKey": "tren-gari",
+        "title": "Isparta Tren Garı (Göller Ekspresi)",
+        "category": "Ulasim",
+        "latitude": 37.769,
+        "longitude": 30.559,
+        "description": ""
+      },
+      {
+        "locationKey": "cunur-kavsagi",
+        "title": "Çünür Kavşağı & Otobüs Aktarma",
+        "category": "Ulasim",
+        "latitude": 37.821,
+        "longitude": 30.535,
+        "description": ""
+      },
+      {
+        "locationKey": "iyas",
+        "title": "Iyaş Park AVM & Yaşam Merkezi",
+        "category": "Sosyal",
+        "latitude": 37.782,
+        "longitude": 30.5446,
+        "description": ""
+      },
+      {
+        "locationKey": "meydan-avm",
+        "title": "Meydan AVM",
+        "category": "Sosyal",
+        "latitude": 37.7647,
+        "longitude": 30.5509,
+        "description": ""
+      },
+      {
+        "locationKey": "sehir-merkezi",
+        "title": "Şehir Merkezi (Hükümet Meydanı)",
+        "category": "Sosyal",
+        "latitude": 37.763,
+        "longitude": 30.5547,
+        "description": ""
+      },
+      {
+        "locationKey": "kafeler-caddesi",
+        "title": "Kafeler Caddesi (Öğrenci Buluşma)",
+        "category": "Sosyal",
+        "latitude": 37.7655,
+        "longitude": 30.552,
+        "description": ""
+      },
+      {
+        "locationKey": "sehir-hastanesi",
+        "title": "Isparta Şehir Hastanesi",
+        "category": "Sosyal",
+        "latitude": 37.7769,
+        "longitude": 30.5612,
+        "description": ""
+      }
+    ]
+  },
+  {
+    "id": 2,
+    "name": "İstanbul Teknik Üniversitesi",
+    "city": "İstanbul",
+    "lat": 41.1055,
+    "lng": 29.0242,
+    "zoom": 14,
+    "places": [
+      {
+        "locationKey": "itu-ayazaga",
+        "title": "Ayazağa Kampüsü (Maslak)",
+        "category": "Kampus",
+        "latitude": 41.1055,
+        "longitude": 29.0242,
+        "description": ""
+      },
+      {
+        "locationKey": "itu-kutuphane",
+        "title": "Mustafa İnan Kütüphanesi (7/24)",
+        "category": "Kampus",
+        "latitude": 41.104,
+        "longitude": 29.023,
+        "description": ""
+      },
+      {
+        "locationKey": "itu-gumussuyu",
+        "title": "Gümüşsuyu Kampüsü (Taksim)",
+        "category": "Kampus",
+        "latitude": 41.0384,
+        "longitude": 28.989,
+        "description": ""
+      },
+      {
+        "locationKey": "itu-taskisla",
+        "title": "Taşkışla Kampüsü (Mimarlık)",
+        "category": "Kampus",
+        "latitude": 41.0412,
+        "longitude": 28.988,
+        "description": ""
+      },
+      {
+        "locationKey": "itu-macka",
+        "title": "Maçka Kampüsü (İşletme)",
+        "category": "Kampus",
+        "latitude": 41.0455,
+        "longitude": 28.995,
+        "description": ""
+      },
+      {
+        "locationKey": "itu-maslak-kyk",
+        "title": "Maslak KYK Öğrenci Yurdu",
+        "category": "Yurt",
+        "latitude": 41.108,
+        "longitude": 29.028,
+        "description": ""
+      },
+      {
+        "locationKey": "itu-golet-yurtlari",
+        "title": "İTÜ Gölet Yurtları",
+        "category": "Yurt",
+        "latitude": 41.1015,
+        "longitude": 29.0205,
+        "description": ""
+      },
+      {
+        "locationKey": "itu-vadi-yurtlari",
+        "title": "İTÜ Vadi Yurtları Kompleksi",
+        "category": "Yurt",
+        "latitude": 41.1095,
+        "longitude": 29.0195,
+        "description": ""
+      },
+      {
+        "locationKey": "itu-ferhunde-yurdu",
+        "title": "Ferhunde Birkan Kız Yurdu",
+        "category": "Yurt",
+        "latitude": 41.106,
+        "longitude": 29.021,
+        "description": ""
+      },
+      {
+        "locationKey": "itu-metro",
+        "title": "İTÜ-Ayazağa Metro İstasyonu (M2)",
+        "category": "Ulasim",
+        "latitude": 41.106,
+        "longitude": 29.022,
+        "description": ""
+      },
+      {
+        "locationKey": "maslak-otobus",
+        "title": "Maslak Otobüs & Minibüs Durakları",
+        "category": "Ulasim",
+        "latitude": 41.1075,
+        "longitude": 29.0255,
+        "description": ""
+      },
+      {
+        "locationKey": "taksim-metro",
+        "title": "Taksim Metro & Meydan",
+        "category": "Ulasim",
+        "latitude": 41.037,
+        "longitude": 28.985,
+        "description": ""
+      },
+      {
+        "locationKey": "zincirlikuyu-metrobus",
+        "title": "Zincirlikuyu Metrobüs Aktarma",
+        "category": "Ulasim",
+        "latitude": 41.068,
+        "longitude": 29.013,
+        "description": ""
+      },
+      {
+        "locationKey": "istinyepark",
+        "title": "İstinyePark AVM",
+        "category": "Sosyal",
+        "latitude": 41.111,
+        "longitude": 29.033,
+        "description": ""
+      },
+      {
+        "locationKey": "vadi-istanbul",
+        "title": "Vadistanbul AVM & Yaşam Vadisi",
+        "category": "Sosyal",
+        "latitude": 41.103,
+        "longitude": 28.987,
+        "description": ""
+      },
+      {
+        "locationKey": "ari-teknokent",
+        "title": "İTÜ ARI Teknokent",
+        "category": "Sosyal",
+        "latitude": 41.102,
+        "longitude": 29.026,
+        "description": ""
+      }
+    ]
+  },
+  {
+    "id": 3,
+    "name": "Boğaziçi Üniversitesi",
+    "city": "İstanbul",
+    "lat": 41.0836,
+    "lng": 29.0506,
+    "zoom": 15,
+    "places": [
+      {
+        "locationKey": "boun-guney",
+        "title": "Güney Kampüs (Tarihi Bina & Meydan)",
+        "category": "Kampus",
+        "latitude": 41.0836,
+        "longitude": 29.0506,
+        "description": ""
+      },
+      {
+        "locationKey": "boun-kuzey",
+        "title": "Kuzey Kampüs (Kütüphane & Lablar)",
+        "category": "Kampus",
+        "latitude": 41.0865,
+        "longitude": 29.046,
+        "description": ""
+      },
+      {
+        "locationKey": "boun-kandilli",
+        "title": "Kandilli Kampüsü & Rasathane",
+        "category": "Kampus",
+        "latitude": 41.063,
+        "longitude": 29.062,
+        "description": ""
+      },
+      {
+        "locationKey": "boun-hisar",
+        "title": "Hisar Kampüsü",
+        "category": "Kampus",
+        "latitude": 41.082,
+        "longitude": 29.043,
+        "description": ""
+      },
+      {
+        "locationKey": "boun-ucaksavar",
+        "title": "Uçaksavar Kampüsü (Spor Salonu)",
+        "category": "Kampus",
+        "latitude": 41.078,
+        "longitude": 29.038,
+        "description": ""
+      },
+      {
+        "locationKey": "boun-superdorm",
+        "title": "Süperdorm Öğrenci Yurdu",
+        "category": "Yurt",
+        "latitude": 41.079,
+        "longitude": 29.039,
+        "description": ""
+      },
+      {
+        "locationKey": "fsm-kyk-yurdu",
+        "title": "Fatih Sultan Mehmet KYK Yurdu",
+        "category": "Yurt",
+        "latitude": 41.092,
+        "longitude": 29.041,
+        "description": ""
+      },
+      {
+        "locationKey": "kilyos-kyk-yurdu",
+        "title": "Kilyos Sarıtepe KYK Yurdu",
+        "category": "Yurt",
+        "latitude": 41.245,
+        "longitude": 29.028,
+        "description": ""
+      },
+      {
+        "locationKey": "boun-metro",
+        "title": "Boğaziçi Üniversitesi Metro (M6)",
+        "category": "Ulasim",
+        "latitude": 41.085,
+        "longitude": 29.047,
+        "description": ""
+      },
+      {
+        "locationKey": "levent-metro",
+        "title": "Levent Metro & Metrobüs Aktarma",
+        "category": "Ulasim",
+        "latitude": 41.076,
+        "longitude": 29.014,
+        "description": ""
+      },
+      {
+        "locationKey": "hisarustu",
+        "title": "Rumeli Hisarüstü Kafeler",
+        "category": "Sosyal",
+        "latitude": 41.084,
+        "longitude": 29.048,
+        "description": ""
+      },
+      {
+        "locationKey": "bebek-sahil",
+        "title": "Bebek Parkı & Sahil Yürüyüş Yolu",
+        "category": "Sosyal",
+        "latitude": 41.077,
+        "longitude": 29.044,
+        "description": ""
+      },
+      {
+        "locationKey": "rumeli-hisari",
+        "title": "Rumeli Hisarı Meydanı",
+        "category": "Sosyal",
+        "latitude": 41.086,
+        "longitude": 29.056,
+        "description": ""
+      }
+    ]
+  },
+  {
+    "id": 4,
+    "name": "Yıldız Teknik Üniversitesi",
+    "city": "İstanbul",
+    "lat": 41.0255,
+    "lng": 28.8911,
+    "zoom": 14,
+    "places": [
+      {
+        "locationKey": "ytu-davutpasa",
+        "title": "Davutpaşa Kampüsü (Ana Yerleşke)",
+        "category": "Kampus",
+        "latitude": 41.0255,
+        "longitude": 28.8911,
+        "description": ""
+      },
+      {
+        "locationKey": "ytu-yildiz",
+        "title": "Yıldız Merkez Kampüsü (Beşiktaş)",
+        "category": "Kampus",
+        "latitude": 41.05,
+        "longitude": 29.01,
+        "description": ""
+      },
+      {
+        "locationKey": "ytu-kutuphane",
+        "title": "YTÜ Şevket Sabancı Kütüphanesi",
+        "category": "Kampus",
+        "latitude": 41.027,
+        "longitude": 28.892,
+        "description": ""
+      },
+      {
+        "locationKey": "fsm-erkek-kyk",
+        "title": "FSM Erkek KYK Öğrenci Yurdu",
+        "category": "Yurt",
+        "latitude": 41.023,
+        "longitude": 28.889,
+        "description": ""
+      },
+      {
+        "locationKey": "cevizlibag-ataturk-kyk",
+        "title": "Cevizlibağ Atatürk KYK Kız Yurdu",
+        "category": "Yurt",
+        "latitude": 41.018,
+        "longitude": 28.918,
+        "description": ""
+      },
+      {
+        "locationKey": "besiktas-sair-nedim",
+        "title": "Beşiktaş Şair Nedim KYK Yurdu",
+        "category": "Yurt",
+        "latitude": 41.043,
+        "longitude": 28.998,
+        "description": ""
+      },
+      {
+        "locationKey": "davutpasa-metro",
+        "title": "Davutpaşa-YTÜ Metro İstasyonu (M1A)",
+        "category": "Ulasim",
+        "latitude": 41.024,
+        "longitude": 28.894,
+        "description": ""
+      },
+      {
+        "locationKey": "cevizlibag-metrobus",
+        "title": "Cevizlibağ Metrobüs İstasyonu",
+        "category": "Ulasim",
+        "latitude": 41.017,
+        "longitude": 28.915,
+        "description": ""
+      },
+      {
+        "locationKey": "ytu-teknopark",
+        "title": "Yıldız Teknopark & İnovasyon",
+        "category": "Sosyal",
+        "latitude": 41.029,
+        "longitude": 28.887,
+        "description": ""
+      },
+      {
+        "locationKey": "besiktas-iskele",
+        "title": "Beşiktaş İskele & Çarşı Meydanı",
+        "category": "Sosyal",
+        "latitude": 41.042,
+        "longitude": 29.006,
+        "description": ""
+      },
+      {
+        "locationKey": "forum-istanbul",
+        "title": "Forum İstanbul AVM & IKEA",
+        "category": "Sosyal",
+        "latitude": 41.048,
+        "longitude": 28.897,
+        "description": ""
+      }
+    ]
+  },
+  {
+    "id": 5,
+    "name": "İstanbul Üniversitesi",
+    "city": "İstanbul",
+    "lat": 41.013,
+    "lng": 28.964,
+    "zoom": 14,
+    "places": [
+      {
+        "locationKey": "iu-beyazit",
+        "title": "Beyazıt Merkez Kampüsü (Tarihi Kapı)",
+        "category": "Kampus",
+        "latitude": 41.013,
+        "longitude": 28.964,
+        "description": ""
+      },
+      {
+        "locationKey": "iu-cerrahpasa",
+        "title": "Cerrahpaşa Tıp Yerleşkesi",
+        "category": "Kampus",
+        "latitude": 41.005,
+        "longitude": 28.941,
+        "description": ""
+      },
+      {
+        "locationKey": "iu-avcilar",
+        "title": "Avcılar Yerleşkesi (Müh. & İşletme)",
+        "category": "Kampus",
+        "latitude": 40.99,
+        "longitude": 28.724,
+        "description": ""
+      },
+      {
+        "locationKey": "iu-hukuk-iktisat",
+        "title": "Hukuk & İktisat Fakültesi Binası",
+        "category": "Kampus",
+        "latitude": 41.0125,
+        "longitude": 28.9635,
+        "description": ""
+      },
+      {
+        "locationKey": "vezneciler-kiz-kyk",
+        "title": "Vezneciler KYK Kız Öğrenci Yurdu",
+        "category": "Yurt",
+        "latitude": 41.0105,
+        "longitude": 28.959,
+        "description": ""
+      },
+      {
+        "locationKey": "avcilar-erkek-kyk",
+        "title": "Avcılar Erkek KYK Öğrenci Yurdu",
+        "category": "Yurt",
+        "latitude": 40.991,
+        "longitude": 28.725,
+        "description": ""
+      },
+      {
+        "locationKey": "kadirga-kyk-yurdu",
+        "title": "Kadırga Erkek KYK Yurdu (Sultanahmet)",
+        "category": "Yurt",
+        "latitude": 41.004,
+        "longitude": 28.968,
+        "description": ""
+      },
+      {
+        "locationKey": "vezneciler-metro",
+        "title": "Vezneciler Metro İstasyonu (M2)",
+        "category": "Ulasim",
+        "latitude": 41.012,
+        "longitude": 28.96,
+        "description": ""
+      },
+      {
+        "locationKey": "beyazit-tramvay",
+        "title": "Beyazıt-Kapalıçarşı Tramvay Durağı (T1)",
+        "category": "Ulasim",
+        "latitude": 41.01,
+        "longitude": 28.965,
+        "description": ""
+      },
+      {
+        "locationKey": "avcilar-metrobus",
+        "title": "Avcılar Kampüs Metrobüs Durağı",
+        "category": "Ulasim",
+        "latitude": 40.988,
+        "longitude": 28.722,
+        "description": ""
+      },
+      {
+        "locationKey": "kapalicarsi",
+        "title": "Beyazıt Meydanı & Sahaflar Çarşısı",
+        "category": "Sosyal",
+        "latitude": 41.011,
+        "longitude": 28.966,
+        "description": ""
+      },
+      {
+        "locationKey": "suleymaniye-kafeler",
+        "title": "Süleymaniye Çay Bahçeleri & Kafeler",
+        "category": "Sosyal",
+        "latitude": 41.016,
+        "longitude": 28.964,
+        "description": ""
+      },
+      {
+        "locationKey": "sultanahmet-meydani",
+        "title": "Tarihi Sultanahmet Meydanı",
+        "category": "Sosyal",
+        "latitude": 41.006,
+        "longitude": 28.977,
+        "description": ""
+      }
+    ]
+  },
+  {
+    "id": 6,
+    "name": "Orta Doğu Teknik Üniversitesi",
+    "city": "Ankara",
+    "lat": 39.8913,
+    "lng": 32.7806,
+    "zoom": 14,
+    "places": [
+      {
+        "locationKey": "odtu-a1",
+        "title": "ODTÜ A1 Girişi (Eskişehir Yolu)",
+        "category": "Kampus",
+        "latitude": 39.8913,
+        "longitude": 32.7806,
+        "description": ""
+      },
+      {
+        "locationKey": "odtu-kutuphane",
+        "title": "ODTÜ Merkez Kütüphanesi",
+        "category": "Kampus",
+        "latitude": 39.888,
+        "longitude": 32.784,
+        "description": ""
+      },
+      {
+        "locationKey": "odtu-devrim",
+        "title": "ODTÜ Devrim Stadyumu",
+        "category": "Kampus",
+        "latitude": 39.885,
+        "longitude": 32.78,
+        "description": ""
+      },
+      {
+        "locationKey": "odtu-carsi",
+        "title": "ODTÜ Çarşı & Sosyal Bina",
+        "category": "Kampus",
+        "latitude": 39.889,
+        "longitude": 32.781,
+        "description": ""
+      },
+      {
+        "locationKey": "odtu-19-yurt",
+        "title": "ODTÜ 19. Yurt Bölgesi",
+        "category": "Yurt",
+        "latitude": 39.892,
+        "longitude": 32.775,
+        "description": ""
+      },
+      {
+        "locationKey": "odtu-8-yurt",
+        "title": "ODTÜ 8. ve 9. Yurtlar",
+        "category": "Yurt",
+        "latitude": 39.893,
+        "longitude": 32.779,
+        "description": ""
+      },
+      {
+        "locationKey": "faik-hiziroglu-kyk",
+        "title": "Faik Hızıroğlu KYK Yurdu",
+        "category": "Yurt",
+        "latitude": 39.888,
+        "longitude": 32.772,
+        "description": ""
+      },
+      {
+        "locationKey": "odtu-metro",
+        "title": "ODTÜ Metro İstasyonu (M2)",
+        "category": "Ulasim",
+        "latitude": 39.893,
+        "longitude": 32.786,
+        "description": ""
+      },
+      {
+        "locationKey": "odtu-a2-kapisi",
+        "title": "A2 Kapısı & 100. Yıl Minibüsleri",
+        "category": "Ulasim",
+        "latitude": 39.881,
+        "longitude": 32.795,
+        "description": ""
+      },
+      {
+        "locationKey": "asti-otogar-ankara",
+        "title": "AŞTİ Şehirlerarası Otobüs Terminali",
+        "category": "Ulasim",
+        "latitude": 39.917,
+        "longitude": 32.8125,
+        "description": ""
+      },
+      {
+        "locationKey": "cepa-kentpark",
+        "title": "CEPA & Kentpark AVM",
+        "category": "Sosyal",
+        "latitude": 39.91,
+        "longitude": 32.778,
+        "description": ""
+      },
+      {
+        "locationKey": "yuzuncu-yil-carsi",
+        "title": "100. Yıl İşçi Blokları & Kafeler",
+        "category": "Sosyal",
+        "latitude": 39.883,
+        "longitude": 32.802,
+        "description": ""
+      },
+      {
+        "locationKey": "eymir-golu-giris",
+        "title": "ODTÜ Ormanı & Eymir Girişi",
+        "category": "Sosyal",
+        "latitude": 39.832,
+        "longitude": 32.825,
+        "description": ""
+      }
+    ]
+  },
+  {
+    "id": 7,
+    "name": "Hacettepe Üniversitesi",
+    "city": "Ankara",
+    "lat": 39.866,
+    "lng": 32.735,
+    "zoom": 14,
+    "places": [
+      {
+        "locationKey": "hacettepe-beytepe",
+        "title": "Beytepe Kampüsü (Ana Giriş)",
+        "category": "Kampus",
+        "latitude": 39.866,
+        "longitude": 32.735,
+        "description": ""
+      },
+      {
+        "locationKey": "hacettepe-sihhiye",
+        "title": "Sıhhiye Merkez Kampüsü (Tıp)",
+        "category": "Kampus",
+        "latitude": 39.932,
+        "longitude": 32.862,
+        "description": ""
+      },
+      {
+        "locationKey": "beytepe-kutuphane",
+        "title": "Beytepe Merkez Kütüphanesi",
+        "category": "Kampus",
+        "latitude": 39.869,
+        "longitude": 32.738,
+        "description": ""
+      },
+      {
+        "locationKey": "emine-serife-kyk",
+        "title": "Emine Şerife Hanım KYK Kız Yurdu",
+        "category": "Yurt",
+        "latitude": 39.861,
+        "longitude": 32.732,
+        "description": ""
+      },
+      {
+        "locationKey": "beytepe-erkek-kyk",
+        "title": "Beytepe Erkek KYK Öğrenci Yurdu",
+        "category": "Yurt",
+        "latitude": 39.863,
+        "longitude": 32.731,
+        "description": ""
+      },
+      {
+        "locationKey": "sihhiye-kyk-yurdu",
+        "title": "Sıhhiye KYK Öğrenci Yurdu",
+        "category": "Yurt",
+        "latitude": 39.934,
+        "longitude": 32.86,
+        "description": ""
+      },
+      {
+        "locationKey": "beytepe-metro",
+        "title": "Beytepe Metro İstasyonu & Ring Durağı",
+        "category": "Ulasim",
+        "latitude": 39.897,
+        "longitude": 32.748,
+        "description": ""
+      },
+      {
+        "locationKey": "sihhiye-metro",
+        "title": "Sıhhiye Metro & Başkentray İstasyonu",
+        "category": "Ulasim",
+        "latitude": 39.928,
+        "longitude": 32.855,
+        "description": ""
+      },
+      {
+        "locationKey": "beytepe-city",
+        "title": "Beytepe City Sosyal Tesisleri",
+        "category": "Sosyal",
+        "latitude": 39.871,
+        "longitude": 32.74,
+        "description": ""
+      },
+      {
+        "locationKey": "arcadium-avm",
+        "title": "Arcadium AVM & Çayyolu Kafeler",
+        "category": "Sosyal",
+        "latitude": 39.882,
+        "longitude": 32.705,
+        "description": ""
+      },
+      {
+        "locationKey": "kizilay-meydani",
+        "title": "Kızılay Meydanı & Yüksel Caddesi",
+        "category": "Sosyal",
+        "latitude": 39.92,
+        "longitude": 32.854,
+        "description": ""
+      }
+    ]
+  },
+  {
+    "id": 8,
+    "name": "Ankara Üniversitesi",
+    "city": "Ankara",
+    "lat": 39.9365,
+    "lng": 32.831,
+    "zoom": 14,
+    "places": [
+      {
+        "locationKey": "ankara-tandogan",
+        "title": "Tandoğan Kampüsü (Fen & Eczacılık)",
+        "category": "Kampus",
+        "latitude": 39.9365,
+        "longitude": 32.831,
+        "description": ""
+      },
+      {
+        "locationKey": "ankara-cebeci",
+        "title": "Cebeci Kampüsü (SBF, Hukuk & İletişim)",
+        "category": "Kampus",
+        "latitude": 39.932,
+        "longitude": 32.875,
+        "description": ""
+      },
+      {
+        "locationKey": "ankara-tip-ibnisina",
+        "title": "İbn-i Sina Araştırma Hastanesi",
+        "category": "Kampus",
+        "latitude": 39.9315,
+        "longitude": 32.864,
+        "description": ""
+      },
+      {
+        "locationKey": "cebeci-kiz-kyk",
+        "title": "Cebeci KYK Kız Öğrenci Yurdu",
+        "category": "Yurt",
+        "latitude": 39.931,
+        "longitude": 32.879,
+        "description": ""
+      },
+      {
+        "locationKey": "baskent-erkek-kyk",
+        "title": "Başkent Erkek KYK Öğrenci Yurdu",
+        "category": "Yurt",
+        "latitude": 39.938,
+        "longitude": 32.822,
+        "description": ""
+      },
+      {
+        "locationKey": "yildirim-beyazit-kyk",
+        "title": "Yıldırım Beyazıt KYK Yurdu (Dışkapı)",
+        "category": "Yurt",
+        "latitude": 39.945,
+        "longitude": 32.865,
+        "description": ""
+      },
+      {
+        "locationKey": "besevler-metro",
+        "title": "Beşevler Ankaray İstasyonu",
+        "category": "Ulasim",
+        "latitude": 39.933,
+        "longitude": 32.827,
+        "description": ""
+      },
+      {
+        "locationKey": "kurtulus-parki",
+        "title": "Kurtuluş Parkı & Metro İstasyonu",
+        "category": "Ulasim",
+        "latitude": 39.928,
+        "longitude": 32.868,
+        "description": ""
+      },
+      {
+        "locationKey": "dikimevi-ankaray",
+        "title": "Dikimevi Ankaray Son Durak",
+        "category": "Ulasim",
+        "latitude": 39.93,
+        "longitude": 32.881,
+        "description": ""
+      },
+      {
+        "locationKey": "hamamonu",
+        "title": "Tarihi Hamamönü Meydanı & Kafeler",
+        "category": "Sosyal",
+        "latitude": 39.934,
+        "longitude": 32.865,
+        "description": ""
+      },
+      {
+        "locationKey": "tandogan-meydani",
+        "title": "Anadolu (Tandoğan) Meydanı",
+        "category": "Sosyal",
+        "latitude": 39.9345,
+        "longitude": 32.837,
+        "description": ""
+      },
+      {
+        "locationKey": "tunali-hilmi",
+        "title": "Kuğulu Park & Tunalı Hilmi Caddesi",
+        "category": "Sosyal",
+        "latitude": 39.904,
+        "longitude": 32.861,
+        "description": ""
+      }
+    ]
+  },
+  {
+    "id": 9,
+    "name": "Ege Üniversitesi",
+    "city": "İzmir",
+    "lat": 38.46,
+    "lng": 27.228,
+    "zoom": 14,
+    "places": [
+      {
+        "locationKey": "ege-merkez",
+        "title": "Ege Kampüs Merkez (Rektörlük & Müh.)",
+        "category": "Kampus",
+        "latitude": 38.46,
+        "longitude": 27.228,
+        "description": ""
+      },
+      {
+        "locationKey": "ege-tip",
+        "title": "Ege Üniversitesi Tıp Fakültesi Hastanesi",
+        "category": "Kampus",
+        "latitude": 38.463,
+        "longitude": 27.218,
+        "description": ""
+      },
+      {
+        "locationKey": "ege-kutuphane",
+        "title": "Ege Üniversitesi Merkez Kütüphanesi",
+        "category": "Kampus",
+        "latitude": 38.461,
+        "longitude": 27.229,
+        "description": ""
+      },
+      {
+        "locationKey": "ege-ogrenci-koyu",
+        "title": "Ege Üniversitesi Öğrenci Köyü Yurtları",
+        "category": "Yurt",
+        "latitude": 38.455,
+        "longitude": 27.234,
+        "description": ""
+      },
+      {
+        "locationKey": "zubeyde-hanim-kyk",
+        "title": "Zübeyde Hanım KYK Kız Yurdu",
+        "category": "Yurt",
+        "latitude": 38.465,
+        "longitude": 27.212,
+        "description": ""
+      },
+      {
+        "locationKey": "bornova-erkek-kyk",
+        "title": "Bornova Erkek KYK Öğrenci Yurdu",
+        "category": "Yurt",
+        "latitude": 38.455,
+        "longitude": 27.218,
+        "description": ""
+      },
+      {
+        "locationKey": "ege-metro",
+        "title": "Ege Üniversitesi Metro İstasyonu",
+        "category": "Ulasim",
+        "latitude": 38.459,
+        "longitude": 27.226,
+        "description": ""
+      },
+      {
+        "locationKey": "bornova-metro",
+        "title": "Bornova Metro & Aktarma Merkezi",
+        "category": "Ulasim",
+        "latitude": 38.462,
+        "longitude": 27.214,
+        "description": ""
+      },
+      {
+        "locationKey": "izmir-otogar",
+        "title": "İzmir Şehirlerarası Otobüs Terminali",
+        "category": "Ulasim",
+        "latitude": 38.432,
+        "longitude": 27.208,
+        "description": ""
+      },
+      {
+        "locationKey": "kucukpark",
+        "title": "Küçükpark Bornova (Öğrenci Meydanı)",
+        "category": "Sosyal",
+        "latitude": 38.463,
+        "longitude": 27.217,
+        "description": ""
+      },
+      {
+        "locationKey": "buyukpark",
+        "title": "Büyükpark Meydanı & Açık Hava Tiyatrosu",
+        "category": "Sosyal",
+        "latitude": 38.466,
+        "longitude": 27.219,
+        "description": ""
+      },
+      {
+        "locationKey": "forum-bornova",
+        "title": "Forum Bornova AVM & IKEA",
+        "category": "Sosyal",
+        "latitude": 38.453,
+        "longitude": 27.238,
+        "description": ""
+      }
+    ]
+  },
+  {
+    "id": 10,
+    "name": "Dokuz Eylül Üniversitesi",
+    "city": "İzmir",
+    "lat": 38.371,
+    "lng": 27.199,
+    "zoom": 14,
+    "places": [
+      {
+        "locationKey": "deu-tinaztepe",
+        "title": "Tınaztepe Merkez Kampüsü (Buca)",
+        "category": "Kampus",
+        "latitude": 38.371,
+        "longitude": 27.199,
+        "description": ""
+      },
+      {
+        "locationKey": "deu-dokuzcesmeler",
+        "title": "Dokuzçeşmeler İİBF Kampüsü",
+        "category": "Kampus",
+        "latitude": 38.388,
+        "longitude": 27.172,
+        "description": ""
+      },
+      {
+        "locationKey": "deu-alsancak",
+        "title": "Alsancak Tarihi Rektörlük",
+        "category": "Kampus",
+        "latitude": 38.434,
+        "longitude": 27.141,
+        "description": ""
+      },
+      {
+        "locationKey": "buca-kiz-kyk",
+        "title": "Buca KYK Kız Öğrenci Yurdu",
+        "category": "Yurt",
+        "latitude": 38.374,
+        "longitude": 27.193,
+        "description": ""
+      },
+      {
+        "locationKey": "hoca-ahmet-yesevi-kyk",
+        "title": "Hoca Ahmet Yesevi KYK Erkek Yurdu",
+        "category": "Yurt",
+        "latitude": 38.378,
+        "longitude": 27.189,
+        "description": ""
+      },
+      {
+        "locationKey": "ataturk-inciralti-kyk",
+        "title": "Atatürk İnciraltı KYK Yurdu",
+        "category": "Yurt",
+        "latitude": 38.399,
+        "longitude": 27.035,
+        "description": ""
+      },
+      {
+        "locationKey": "sirinyer-izban",
+        "title": "Şirinyer İZBAN İstasyonu",
+        "category": "Ulasim",
+        "latitude": 38.397,
+        "longitude": 27.159,
+        "description": ""
+      },
+      {
+        "locationKey": "hilal-izban-metro",
+        "title": "Hilal İZBAN & Metro Aktarma",
+        "category": "Ulasim",
+        "latitude": 38.421,
+        "longitude": 27.158,
+        "description": ""
+      },
+      {
+        "locationKey": "hasanaga-bahcesi",
+        "title": "Buca Hasanağa Bahçesi & Kafeler",
+        "category": "Sosyal",
+        "latitude": 38.384,
+        "longitude": 27.178,
+        "description": ""
+      },
+      {
+        "locationKey": "konak-meydan",
+        "title": "Konak Meydanı & Saat Kulesi",
+        "category": "Sosyal",
+        "latitude": 38.419,
+        "longitude": 27.1285,
+        "description": ""
+      },
+      {
+        "locationKey": "alsancak-kordon",
+        "title": "Alsancak Kordon & Kıbrıs Şehitleri",
+        "category": "Sosyal",
+        "latitude": 38.436,
+        "longitude": 27.14,
+        "description": ""
+      }
+    ]
+  },
+  {
+    "id": 11,
+    "name": "Anadolu Üniversitesi",
+    "city": "Eskişehir",
+    "lat": 39.7915,
+    "lng": 30.5005,
+    "zoom": 14,
+    "places": [
+      {
+        "locationKey": "anadolu-yunus-emre",
+        "title": "Yunus Emre Kampüsü (Ana Giriş)",
+        "category": "Kampus",
+        "latitude": 39.7915,
+        "longitude": 30.5005,
+        "description": ""
+      },
+      {
+        "locationKey": "anadolu-iki-eylul",
+        "title": "İki Eylül Kampüsü (Havacılık & Müh.)",
+        "category": "Kampus",
+        "latitude": 39.814,
+        "longitude": 30.528,
+        "description": ""
+      },
+      {
+        "locationKey": "anadolu-kutuphane",
+        "title": "Öğrenci Merkezi & 7/24 Kütüphane",
+        "category": "Kampus",
+        "latitude": 39.793,
+        "longitude": 30.503,
+        "description": ""
+      },
+      {
+        "locationKey": "yunus-emre-kyk",
+        "title": "Yunus Emre KYK Yurdu",
+        "category": "Yurt",
+        "latitude": 39.789,
+        "longitude": 30.498,
+        "description": ""
+      },
+      {
+        "locationKey": "cumhuriyet-kyk",
+        "title": "Cumhuriyet KYK Kız Yurdu",
+        "category": "Yurt",
+        "latitude": 39.792,
+        "longitude": 30.508,
+        "description": ""
+      },
+      {
+        "locationKey": "dogan-aslan-kyk",
+        "title": "Doğan Aslan Bey KYK Yurdu",
+        "category": "Yurt",
+        "latitude": 39.795,
+        "longitude": 30.505,
+        "description": ""
+      },
+      {
+        "locationKey": "anadolu-tramvay",
+        "title": "Anadolu Üniversitesi Tramvay Durağı",
+        "category": "Ulasim",
+        "latitude": 39.79,
+        "longitude": 30.501,
+        "description": ""
+      },
+      {
+        "locationKey": "eskisehir-gari",
+        "title": "Eskişehir YHT Garı",
+        "category": "Ulasim",
+        "latitude": 39.779,
+        "longitude": 30.514,
+        "description": ""
+      },
+      {
+        "locationKey": "eskisehir-otogar",
+        "title": "Eskişehir Şehirlerarası Otogar",
+        "category": "Ulasim",
+        "latitude": 39.771,
+        "longitude": 30.573,
+        "description": ""
+      },
+      {
+        "locationKey": "espark-avm",
+        "title": "Espark AVM & Üniversite Caddesi",
+        "category": "Sosyal",
+        "latitude": 39.786,
+        "longitude": 30.506,
+        "description": ""
+      },
+      {
+        "locationKey": "baglar-caddesi",
+        "title": "Bağlar Öğrenci Kafeleri",
+        "category": "Sosyal",
+        "latitude": 39.788,
+        "longitude": 30.504,
+        "description": ""
+      },
+      {
+        "locationKey": "adalar-porsuk",
+        "title": "Adalar & Porsuk Çayı Çevresi",
+        "category": "Sosyal",
+        "latitude": 39.775,
+        "longitude": 30.518,
+        "description": ""
+      },
+      {
+        "locationKey": "haller-genclik",
+        "title": "Haller Gençlik Merkezi",
+        "category": "Sosyal",
+        "latitude": 39.781,
+        "longitude": 30.512,
+        "description": ""
+      }
+    ]
+  },
+  {
+    "id": 12,
+    "name": "Eskişehir Osmangazi Üniversitesi",
+    "city": "Eskişehir",
+    "lat": 39.7505,
+    "lng": 30.484,
+    "zoom": 14,
+    "places": [
+      {
+        "locationKey": "esogu-meselik",
+        "title": "Meşelik Kampüsü (Ana Giriş & Rektörlük)",
+        "category": "Kampus",
+        "latitude": 39.7505,
+        "longitude": 30.484,
+        "description": ""
+      },
+      {
+        "locationKey": "esogu-tip",
+        "title": "ESOGÜ Tıp Fakültesi Hastanesi",
+        "category": "Kampus",
+        "latitude": 39.753,
+        "longitude": 30.486,
+        "description": ""
+      },
+      {
+        "locationKey": "dumlupinar-kyk",
+        "title": "Dumlupınar KYK Öğrenci Yurdu",
+        "category": "Yurt",
+        "latitude": 39.756,
+        "longitude": 30.491,
+        "description": ""
+      },
+      {
+        "locationKey": "bala-hatun-kyk",
+        "title": "Bala Hatun KYK Kız Yurdu",
+        "category": "Yurt",
+        "latitude": 39.754,
+        "longitude": 30.495,
+        "description": ""
+      },
+      {
+        "locationKey": "yunus-emre-erkek-kyk",
+        "title": "Yunus Emre KYK Erkek Yurdu (Meşelik)",
+        "category": "Yurt",
+        "latitude": 39.758,
+        "longitude": 30.488,
+        "description": ""
+      },
+      {
+        "locationKey": "esogu-tramvay",
+        "title": "ESOGÜ Tramvay Son Durak & Aktarma",
+        "category": "Ulasim",
+        "latitude": 39.749,
+        "longitude": 30.483,
+        "description": ""
+      },
+      {
+        "locationKey": "meselik-otobus",
+        "title": "Meşelik Kampüs Otobüs Peronları",
+        "category": "Ulasim",
+        "latitude": 39.748,
+        "longitude": 30.485,
+        "description": ""
+      },
+      {
+        "locationKey": "sazova-parki",
+        "title": "Sazova Bilim, Sanat ve Kültür Parkı",
+        "category": "Sosyal",
+        "latitude": 39.768,
+        "longitude": 30.472,
+        "description": ""
+      },
+      {
+        "locationKey": "hamamyolu",
+        "title": "Hamamyolu Caddesi & Odunpazarı",
+        "category": "Sosyal",
+        "latitude": 39.771,
+        "longitude": 30.521,
+        "description": ""
+      },
+      {
+        "locationKey": "odunpazari-evleri",
+        "title": "Tarihi Odunpazarı Evleri & Meydanı",
+        "category": "Sosyal",
+        "latitude": 39.76,
+        "longitude": 30.525,
+        "description": ""
+      }
+    ]
+  },
+  {
+    "id": 13,
+    "name": "Akdeniz Üniversitesi",
+    "city": "Antalya",
+    "lat": 36.8965,
+    "lng": 30.655,
+    "zoom": 14,
+    "places": [
+      {
+        "locationKey": "akdeniz-meltem",
+        "title": "Akdeniz Kampüs (Meltem Kapısı)",
+        "category": "Kampus",
+        "latitude": 36.8965,
+        "longitude": 30.655,
+        "description": ""
+      },
+      {
+        "locationKey": "akdeniz-hastane",
+        "title": "Akdeniz Üniversitesi Tıp Hastanesi",
+        "category": "Kampus",
+        "latitude": 36.891,
+        "longitude": 30.652,
+        "description": ""
+      },
+      {
+        "locationKey": "akdeniz-kutuphane",
+        "title": "Akdeniz Üniversitesi Merkez Kütüphane",
+        "category": "Kampus",
+        "latitude": 36.898,
+        "longitude": 30.658,
+        "description": ""
+      },
+      {
+        "locationKey": "elmalili-hamdi-kyk",
+        "title": "Elmalılı Hamdi Yazır KYK Yurdu",
+        "category": "Yurt",
+        "latitude": 36.893,
+        "longitude": 30.665,
+        "description": ""
+      },
+      {
+        "locationKey": "akdeniz-ogrenci-yurdu",
+        "title": "Akdeniz Öğrenci Yurtları Kompleksi",
+        "category": "Yurt",
+        "latitude": 36.895,
+        "longitude": 30.661,
+        "description": ""
+      },
+      {
+        "locationKey": "muratpasa-kiz-kyk",
+        "title": "Muratpaşa KYK Kız Yurdu",
+        "category": "Yurt",
+        "latitude": 36.892,
+        "longitude": 30.662,
+        "description": ""
+      },
+      {
+        "locationKey": "antray-universite",
+        "title": "Antray Akdeniz Üniversitesi Tramvayı",
+        "category": "Ulasim",
+        "latitude": 36.899,
+        "longitude": 30.667,
+        "description": ""
+      },
+      {
+        "locationKey": "antalya-otogar",
+        "title": "Antalya Şehirlerarası Otobüs Terminali",
+        "category": "Ulasim",
+        "latitude": 36.921,
+        "longitude": 30.664,
+        "description": ""
+      },
+      {
+        "locationKey": "konyaalti-sahil",
+        "title": "Konyaaltı Sahili & Kent Meydanı",
+        "category": "Sosyal",
+        "latitude": 36.879,
+        "longitude": 30.648,
+        "description": ""
+      },
+      {
+        "locationKey": "5m-migros",
+        "title": "5M Migros AVM & Aktur Park",
+        "category": "Sosyal",
+        "latitude": 36.884,
+        "longitude": 30.658,
+        "description": ""
+      },
+      {
+        "locationKey": "kaleici",
+        "title": "Kaleiçi Tarihi Çarşı & Yat Limanı",
+        "category": "Sosyal",
+        "latitude": 36.886,
+        "longitude": 30.706,
+        "description": ""
+      }
+    ]
+  },
+  {
+    "id": 14,
+    "name": "Bursa Uludağ Üniversitesi",
+    "city": "Bursa",
+    "lat": 40.224,
+    "lng": 28.871,
+    "zoom": 14,
+    "places": [
+      {
+        "locationKey": "uludag-gorukle",
+        "title": "Görükle Merkez Kampüsü (Rektörlük)",
+        "category": "Kampus",
+        "latitude": 40.224,
+        "longitude": 28.871,
+        "description": ""
+      },
+      {
+        "locationKey": "uludag-tip",
+        "title": "Uludağ Üniversitesi Tıp Fakültesi",
+        "category": "Kampus",
+        "latitude": 40.228,
+        "longitude": 28.868,
+        "description": ""
+      },
+      {
+        "locationKey": "uludag-kutuphane",
+        "title": "Uludağ Merkez Kütüphanesi",
+        "category": "Kampus",
+        "latitude": 40.225,
+        "longitude": 28.873,
+        "description": ""
+      },
+      {
+        "locationKey": "halime-hatun-kyk",
+        "title": "Halime Hatun KYK Kız Yurdu",
+        "category": "Yurt",
+        "latitude": 40.221,
+        "longitude": 28.874,
+        "description": ""
+      },
+      {
+        "locationKey": "emir-sultan-kyk",
+        "title": "Emir Sultan KYK Erkek Yurdu (Görükle)",
+        "category": "Yurt",
+        "latitude": 40.229,
+        "longitude": 28.865,
+        "description": ""
+      },
+      {
+        "locationKey": "uludag-kiz-kyk",
+        "title": "Uludağ KYK Kız Yurdu Kompleksi",
+        "category": "Yurt",
+        "latitude": 40.226,
+        "longitude": 28.875,
+        "description": ""
+      },
+      {
+        "locationKey": "bursaray-universite",
+        "title": "Bursaray Üniversite İstasyonu (Son Durak)",
+        "category": "Ulasim",
+        "latitude": 40.223,
+        "longitude": 28.875,
+        "description": ""
+      },
+      {
+        "locationKey": "bursa-otogar",
+        "title": "Bursa Şehirlerarası Otobüs Terminali",
+        "category": "Ulasim",
+        "latitude": 40.264,
+        "longitude": 29.055,
+        "description": ""
+      },
+      {
+        "locationKey": "gorukle-trio",
+        "title": "Görükle Trio Meydanı & Öğrenci Kafeleri",
+        "category": "Sosyal",
+        "latitude": 40.227,
+        "longitude": 28.852,
+        "description": ""
+      },
+      {
+        "locationKey": "gorukle-yerlesim",
+        "title": "Görükle Yerleşim Çarşısı",
+        "category": "Sosyal",
+        "latitude": 40.229,
+        "longitude": 28.856,
+        "description": ""
+      },
+      {
+        "locationKey": "sur-yapi-marka",
+        "title": "Sur Yapı Marka AVM & Nilüfer Park",
+        "category": "Sosyal",
+        "latitude": 40.208,
+        "longitude": 28.988,
+        "description": ""
+      }
+    ]
+  },
+  {
+    "id": 15,
+    "name": "Selçuk Üniversitesi",
+    "city": "Konya",
+    "lat": 38.026,
+    "lng": 32.511,
+    "zoom": 14,
+    "places": [
+      {
+        "locationKey": "selcuk-alaeddin",
+        "title": "Alaeddin Keykubat Kampüsü (Ana Kapı)",
+        "category": "Kampus",
+        "latitude": 38.026,
+        "longitude": 32.511,
+        "description": ""
+      },
+      {
+        "locationKey": "selcuk-tip",
+        "title": "Selçuk Üniversitesi Tıp Fakültesi Hastanesi",
+        "category": "Kampus",
+        "latitude": 38.031,
+        "longitude": 32.514,
+        "description": ""
+      },
+      {
+        "locationKey": "selcuk-kutuphane",
+        "title": "Erol Güngör Merkez Kütüphanesi",
+        "category": "Kampus",
+        "latitude": 38.028,
+        "longitude": 32.509,
+        "description": ""
+      },
+      {
+        "locationKey": "alaeddin-kyk",
+        "title": "Alaeddin KYK Öğrenci Yurdu",
+        "category": "Yurt",
+        "latitude": 38.023,
+        "longitude": 32.516,
+        "description": ""
+      },
+      {
+        "locationKey": "kutalmisoglu-kyk",
+        "title": "Kutalmışoğlu KYK Erkek Yurdu (Bosna)",
+        "category": "Yurt",
+        "latitude": 38.019,
+        "longitude": 32.518,
+        "description": ""
+      },
+      {
+        "locationKey": "fahrunnisa-kyk",
+        "title": "Fahrunnisa KYK Kız Yurdu",
+        "category": "Yurt",
+        "latitude": 38.024,
+        "longitude": 32.508,
+        "description": ""
+      },
+      {
+        "locationKey": "kampus-tramvay",
+        "title": "Kampüs Tramvay Son Durak",
+        "category": "Ulasim",
+        "latitude": 38.025,
+        "longitude": 32.512,
+        "description": ""
+      },
+      {
+        "locationKey": "konya-otogar",
+        "title": "Konya Şehirlerarası Otobüs Terminali",
+        "category": "Ulasim",
+        "latitude": 37.951,
+        "longitude": 32.508,
+        "description": ""
+      },
+      {
+        "locationKey": "konya-yht-gari",
+        "title": "Konya YHT Hızlı Tren Garı",
+        "category": "Ulasim",
+        "latitude": 37.868,
+        "longitude": 32.482,
+        "description": ""
+      },
+      {
+        "locationKey": "bosna-hersek-carsi",
+        "title": "Bosna Hersek Mahallesi Öğrenci Çarşısı",
+        "category": "Sosyal",
+        "latitude": 38.016,
+        "longitude": 32.522,
+        "description": ""
+      },
+      {
+        "locationKey": "m1-konya",
+        "title": "M1 Konya AVM & Real",
+        "category": "Sosyal",
+        "latitude": 37.955,
+        "longitude": 32.512,
+        "description": ""
+      },
+      {
+        "locationKey": "zafer-meydani-konya",
+        "title": "Zafer Meydanı & Alaaddin Tepesi",
+        "category": "Sosyal",
+        "latitude": 37.873,
+        "longitude": 32.493,
+        "description": ""
+      }
+    ]
+  },
+  {
+    "id": 16,
+    "name": "Kocaeli Üniversitesi",
+    "city": "Kocaeli",
+    "lat": 40.821,
+    "lng": 29.923,
+    "zoom": 14,
+    "places": [
+      {
+        "locationKey": "kou-umuttepe",
+        "title": "Umuttepe Merkez Kampüsü (Rektörlük)",
+        "category": "Kampus",
+        "latitude": 40.821,
+        "longitude": 29.923,
+        "description": ""
+      },
+      {
+        "locationKey": "kou-hastane",
+        "title": "KOÜ Araştırma ve Uygulama Hastanesi",
+        "category": "Kampus",
+        "latitude": 40.824,
+        "longitude": 29.921,
+        "description": ""
+      },
+      {
+        "locationKey": "kou-kutuphane",
+        "title": "Umuttepe Merkez Kütüphanesi",
+        "category": "Kampus",
+        "latitude": 40.822,
+        "longitude": 29.925,
+        "description": ""
+      },
+      {
+        "locationKey": "gazi-suleyman-kyk",
+        "title": "Gazi Süleyman Paşa KYK Erkek Yurdu",
+        "category": "Yurt",
+        "latitude": 40.816,
+        "longitude": 29.928,
+        "description": ""
+      },
+      {
+        "locationKey": "samiha-ayverdi-kyk",
+        "title": "Samiha Ayverdi KYK Kız Yurdu",
+        "category": "Yurt",
+        "latitude": 40.825,
+        "longitude": 29.918,
+        "description": ""
+      },
+      {
+        "locationKey": "ali-fuat-cebesoy-kyk",
+        "title": "Ali Fuat Cebesoy KYK Yurdu",
+        "category": "Yurt",
+        "latitude": 40.818,
+        "longitude": 29.929,
+        "description": ""
+      },
+      {
+        "locationKey": "umuttepe-otobus",
+        "title": "Umuttepe Otobüs Peronları (Son Durak)",
+        "category": "Ulasim",
+        "latitude": 40.82,
+        "longitude": 29.924,
+        "description": ""
+      },
+      {
+        "locationKey": "izmit-otogar",
+        "title": "İzmit Şehirlerarası Otobüs Terminali",
+        "category": "Ulasim",
+        "latitude": 40.774,
+        "longitude": 29.965,
+        "description": ""
+      },
+      {
+        "locationKey": "izmit-yht-gari",
+        "title": "İzmit Tren Garı (YHT Durağı)",
+        "category": "Ulasim",
+        "latitude": 40.762,
+        "longitude": 29.918,
+        "description": ""
+      },
+      {
+        "locationKey": "izmit-yuruyus-yolu",
+        "title": "İzmit Tarihi Yürüyüş Yolu & Kafeler",
+        "category": "Sosyal",
+        "latitude": 40.765,
+        "longitude": 29.928,
+        "description": ""
+      },
+      {
+        "locationKey": "symbol-avm",
+        "title": "Symbol Kocaeli AVM & Medical Park",
+        "category": "Sosyal",
+        "latitude": 40.762,
+        "longitude": 29.972,
+        "description": ""
+      }
+    ]
+  },
+  {
+    "id": 17,
+    "name": "Sakarya Üniversitesi",
+    "city": "Sakarya",
+    "lat": 40.741,
+    "lng": 30.334,
+    "zoom": 14,
+    "places": [
+      {
+        "locationKey": "sau-esentepe",
+        "title": "Esentepe Kampüsü (Ana Giriş & Rektörlük)",
+        "category": "Kampus",
+        "latitude": 40.741,
+        "longitude": 30.334,
+        "description": ""
+      },
+      {
+        "locationKey": "sau-kutuphane",
+        "title": "SAÜ Merkez Kütüphanesi",
+        "category": "Kampus",
+        "latitude": 40.7425,
+        "longitude": 30.3355,
+        "description": ""
+      },
+      {
+        "locationKey": "sabahattin-zaim-kyk",
+        "title": "Sabahattin Zaim KYK Yurdu",
+        "category": "Yurt",
+        "latitude": 40.738,
+        "longitude": 30.338,
+        "description": ""
+      },
+      {
+        "locationKey": "ayse-humeyra-kyk",
+        "title": "Ayşe Hümeyra Ökten KYK Kız Yurdu",
+        "category": "Yurt",
+        "latitude": 40.738,
+        "longitude": 30.339,
+        "description": ""
+      },
+      {
+        "locationKey": "rahime-sultan-kyk",
+        "title": "Rahime Sultan KYK Yurdu",
+        "category": "Yurt",
+        "latitude": 40.745,
+        "longitude": 30.331,
+        "description": ""
+      },
+      {
+        "locationKey": "kampus-otobus-sau",
+        "title": "Kampüs Otobüs & Minibüs Durakları",
+        "category": "Ulasim",
+        "latitude": 40.739,
+        "longitude": 30.336,
+        "description": ""
+      },
+      {
+        "locationKey": "sakarya-otogar",
+        "title": "Sakarya Şehirlerarası Otobüs Terminali",
+        "category": "Ulasim",
+        "latitude": 40.718,
+        "longitude": 30.402,
+        "description": ""
+      },
+      {
+        "locationKey": "mavi-durak",
+        "title": "Serdivan Mavi Durak (Öğrenci Kafeleri)",
+        "category": "Sosyal",
+        "latitude": 40.762,
+        "longitude": 30.365,
+        "description": ""
+      },
+      {
+        "locationKey": "serdivan-avm",
+        "title": "Serdivan AVM & Cadde54",
+        "category": "Sosyal",
+        "latitude": 40.765,
+        "longitude": 30.362,
+        "description": ""
+      },
+      {
+        "locationKey": "cark-caddesi",
+        "title": "Adapazarı Çark Caddesi Meydanı",
+        "category": "Sosyal",
+        "latitude": 40.772,
+        "longitude": 30.395,
+        "description": ""
+      }
+    ]
+  },
+  {
+    "id": 18,
+    "name": "Karadeniz Teknik Üniversitesi",
+    "city": "Trabzon",
+    "lat": 40.995,
+    "lng": 39.771,
+    "zoom": 14,
+    "places": [
+      {
+        "locationKey": "ktu-kanuni",
+        "title": "Kanuni Kampüsü (Ana Giriş & Rektörlük)",
+        "category": "Kampus",
+        "latitude": 40.995,
+        "longitude": 39.771,
+        "description": ""
+      },
+      {
+        "locationKey": "ktu-farabi",
+        "title": "KTÜ Farabi Hastanesi",
+        "category": "Kampus",
+        "latitude": 40.997,
+        "longitude": 39.774,
+        "description": ""
+      },
+      {
+        "locationKey": "ktu-kutuphane",
+        "title": "Faik Ahmet Barutçu Kütüphanesi",
+        "category": "Kampus",
+        "latitude": 40.996,
+        "longitude": 39.772,
+        "description": ""
+      },
+      {
+        "locationKey": "dogu-karadeniz-kyk",
+        "title": "Doğu Karadeniz KYK Yurdu",
+        "category": "Yurt",
+        "latitude": 40.993,
+        "longitude": 39.778,
+        "description": ""
+      },
+      {
+        "locationKey": "yomra-kanuni-kyk",
+        "title": "Yomra Kanuni KYK Kız Yurdu",
+        "category": "Yurt",
+        "latitude": 40.958,
+        "longitude": 39.845,
+        "description": ""
+      },
+      {
+        "locationKey": "trabzon-merkez-kyk",
+        "title": "Trabzon Merkez Erkek KYK Yurdu",
+        "category": "Yurt",
+        "latitude": 40.998,
+        "longitude": 39.765,
+        "description": ""
+      },
+      {
+        "locationKey": "ktu-dolmus",
+        "title": "KTÜ Dolmuş & Otobüs Durakları",
+        "category": "Ulasim",
+        "latitude": 40.994,
+        "longitude": 39.769,
+        "description": ""
+      },
+      {
+        "locationKey": "trabzon-otogar",
+        "title": "Trabzon Şehirlerarası Otobüs Terminali",
+        "category": "Ulasim",
+        "latitude": 40.996,
+        "longitude": 39.748,
+        "description": ""
+      },
+      {
+        "locationKey": "trabzon-havalimani",
+        "title": "Trabzon Havalimanı (Kampüs Yanı)",
+        "category": "Ulasim",
+        "latitude": 40.995,
+        "longitude": 39.789,
+        "description": ""
+      },
+      {
+        "locationKey": "forum-trabzon",
+        "title": "Forum Trabzon AVM",
+        "category": "Sosyal",
+        "latitude": 40.998,
+        "longitude": 39.761,
+        "description": ""
+      },
+      {
+        "locationKey": "meydan-parki-trabzon",
+        "title": "Trabzon Meydan Parkı (Atatürk Alanı)",
+        "category": "Sosyal",
+        "latitude": 41.003,
+        "longitude": 39.728,
+        "description": ""
+      },
+      {
+        "locationKey": "boztepe-trabzon",
+        "title": "Boztepe Çay Bahçesi & Seyir Terası",
+        "category": "Sosyal",
+        "latitude": 40.998,
+        "longitude": 39.731,
+        "description": ""
+      }
+    ]
+  },
+  {
+    "id": 19,
+    "name": "Gazi Üniversitesi",
+    "city": "Ankara",
+    "lat": 39.9392,
+    "lng": 32.8228,
+    "zoom": 14,
+    "places": [
+      {
+        "locationKey": "gazi-merkez",
+        "title": "Gazi Merkez Kampüs (Beşevler / Rektörlük)",
+        "category": "Kampus",
+        "latitude": 39.9392,
+        "longitude": 32.8228,
+        "description": ""
+      },
+      {
+        "locationKey": "gazi-muhendislik",
+        "title": "Gazi Mühendislik Fakültesi (Maltepe)",
+        "category": "Kampus",
+        "latitude": 39.928,
+        "longitude": 32.845,
+        "description": ""
+      },
+      {
+        "locationKey": "gazi-teknoloji",
+        "title": "Teknoloji Fakültesi Yerleşkesi",
+        "category": "Kampus",
+        "latitude": 39.938,
+        "longitude": 32.824,
+        "description": ""
+      },
+      {
+        "locationKey": "gazi-hastane",
+        "title": "Gazi Üniversitesi Tıp Fakültesi Hastanesi",
+        "category": "Kampus",
+        "latitude": 39.934,
+        "longitude": 32.821,
+        "description": ""
+      },
+      {
+        "locationKey": "gazi-kyk-erkek",
+        "title": "Gazi KYK Erkek Öğrenci Yurdu",
+        "category": "Yurt",
+        "latitude": 39.941,
+        "longitude": 32.825,
+        "description": ""
+      },
+      {
+        "locationKey": "serife-baci-kyk",
+        "title": "Şerife Bacı KYK Kız Yurdu",
+        "category": "Yurt",
+        "latitude": 39.937,
+        "longitude": 32.821,
+        "description": ""
+      },
+      {
+        "locationKey": "mahmut-nedim-kyk",
+        "title": "Mahmut Nedim Zabcı KYK Yurdu",
+        "category": "Yurt",
+        "latitude": 39.9405,
+        "longitude": 32.828,
+        "description": ""
+      },
+      {
+        "locationKey": "beseveler-gazi-metro",
+        "title": "Beşevler Ankaray İstasyonu (Gazi Çıkışı)",
+        "category": "Ulasim",
+        "latitude": 39.933,
+        "longitude": 32.827,
+        "description": ""
+      },
+      {
+        "locationKey": "maltepe-gazi-metro",
+        "title": "Maltepe Ankaray İstasyonu",
+        "category": "Ulasim",
+        "latitude": 39.9275,
+        "longitude": 32.8465,
+        "description": ""
+      },
+      {
+        "locationKey": "asti-gazi-ulasim",
+        "title": "AŞTİ Otobüs Terminali (5 dk Mesafe)",
+        "category": "Ulasim",
+        "latitude": 39.917,
+        "longitude": 32.8125,
+        "description": ""
+      },
+      {
+        "locationKey": "bahcelievler-7-cadde",
+        "title": "Bahçelievler 7. Cadde (Öğrenci Kafeleri)",
+        "category": "Sosyal",
+        "latitude": 39.92,
+        "longitude": 32.8235,
+        "description": ""
+      },
+      {
+        "locationKey": "anitkabir-parki",
+        "title": "Anıtkabir Barış Parkı & Yürüyüş Yolu",
+        "category": "Sosyal",
+        "latitude": 39.925,
+        "longitude": 32.836,
+        "description": ""
+      },
+      {
+        "locationKey": "armada-avm",
+        "title": "Armada AVM & Yaşam Sokağı",
+        "category": "Sosyal",
+        "latitude": 39.913,
+        "longitude": 32.809,
+        "description": ""
+      }
+    ]
+  },
+  {
+    "id": 20,
+    "name": "Marmara Üniversitesi",
+    "city": "İstanbul",
+    "lat": 40.985,
+    "lng": 29.055,
+    "zoom": 14,
+    "places": [
+      {
+        "locationKey": "marmara-kulliye",
+        "title": "Recep Tayyip Erdoğan Külliyesi (Maltepe Ana Kampüs)",
+        "category": "Kampus",
+        "latitude": 40.954,
+        "longitude": 29.142,
+        "description": ""
+      },
+      {
+        "locationKey": "marmara-goztepe",
+        "title": "Göztepe Kampüsü (Kadıköy)",
+        "category": "Kampus",
+        "latitude": 40.985,
+        "longitude": 29.055,
+        "description": ""
+      },
+      {
+        "locationKey": "marmara-haydarpasa",
+        "title": "Tarihi Haydarpaşa Yerleşkesi",
+        "category": "Kampus",
+        "latitude": 40.998,
+        "longitude": 29.022,
+        "description": ""
+      },
+      {
+        "locationKey": "mimar-sinan-kyk-maltepe",
+        "title": "Mimar Sinan KYK Yurdu (Maltepe)",
+        "category": "Yurt",
+        "latitude": 40.952,
+        "longitude": 29.141,
+        "description": ""
+      },
+      {
+        "locationKey": "handan-ziya-kyk",
+        "title": "Handan Ziya Öniş KYK Kız Yurdu",
+        "category": "Yurt",
+        "latitude": 40.982,
+        "longitude": 29.058,
+        "description": ""
+      },
+      {
+        "locationKey": "maltepe-kiz-kyk",
+        "title": "Maltepe KYK Kız Yurdu",
+        "category": "Yurt",
+        "latitude": 40.948,
+        "longitude": 29.135,
+        "description": ""
+      },
+      {
+        "locationKey": "kadikoy-metro-iskele",
+        "title": "Kadıköy Metro & Şehir Hatları İskelesi",
+        "category": "Ulasim",
+        "latitude": 40.991,
+        "longitude": 29.023,
+        "description": ""
+      },
+      {
+        "locationKey": "goztepe-marmaray",
+        "title": "Göztepe Marmaray İstasyonu",
+        "category": "Ulasim",
+        "latitude": 40.978,
+        "longitude": 29.057,
+        "description": ""
+      },
+      {
+        "locationKey": "sogutlucesme-metrobus",
+        "title": "Söğütlüçeşme Metrobüs & YHT İstasyonu",
+        "category": "Ulasim",
+        "latitude": 40.99,
+        "longitude": 29.038,
+        "description": ""
+      },
+      {
+        "locationKey": "kadikoy-moda-sahil",
+        "title": "Moda Sahili & Kadıköy Çarşısı",
+        "category": "Sosyal",
+        "latitude": 40.983,
+        "longitude": 29.027,
+        "description": ""
+      },
+      {
+        "locationKey": "bagdat-caddesi-marmara",
+        "title": "Bağdat Caddesi & Erenköy",
+        "category": "Sosyal",
+        "latitude": 40.963,
+        "longitude": 29.072,
+        "description": ""
+      },
+      {
+        "locationKey": "piazza-maltepe",
+        "title": "Maltepe Piazza & Ritim AVM",
+        "category": "Sosyal",
+        "latitude": 40.932,
+        "longitude": 29.155,
+        "description": ""
+      }
+    ]
+  },
+  {
+    "id": 21,
+    "name": "Çukurova Üniversitesi",
+    "city": "Adana",
+    "lat": 37.0545,
+    "lng": 35.3525,
+    "zoom": 14,
+    "places": [
+      {
+        "locationKey": "cukurova-balcali",
+        "title": "Balcalı Merkez Kampüsü (Rektörlük)",
+        "category": "Kampus",
+        "latitude": 37.0545,
+        "longitude": 35.3525,
+        "description": ""
+      },
+      {
+        "locationKey": "cukurova-tip-balcali",
+        "title": "Balcalı Tıp Fakültesi Hastanesi",
+        "category": "Kampus",
+        "latitude": 37.056,
+        "longitude": 35.356,
+        "description": ""
+      },
+      {
+        "locationKey": "mithat-ozsan-amfi",
+        "title": "Mithat Özsan Amfisi & Kütüphane",
+        "category": "Kampus",
+        "latitude": 37.0535,
+        "longitude": 35.351,
+        "description": ""
+      },
+      {
+        "locationKey": "fevzi-cakmak-kyk-adana",
+        "title": "Fevzi Çakmak KYK Erkek Yurdu",
+        "category": "Yurt",
+        "latitude": 37.051,
+        "longitude": 35.358,
+        "description": ""
+      },
+      {
+        "locationKey": "cukurova-kiz-kyk",
+        "title": "Çukurova KYK Kız Öğrenci Yurdu",
+        "category": "Yurt",
+        "latitude": 37.058,
+        "longitude": 35.349,
+        "description": ""
+      },
+      {
+        "locationKey": "toroslar-kyk-adana",
+        "title": "Toroslar KYK Yurdu (Balcalı)",
+        "category": "Yurt",
+        "latitude": 37.049,
+        "longitude": 35.361,
+        "description": ""
+      },
+      {
+        "locationKey": "adana-otogar",
+        "title": "Adana Şehirlerarası Otobüs Terminali",
+        "category": "Ulasim",
+        "latitude": 36.985,
+        "longitude": 35.265,
+        "description": ""
+      },
+      {
+        "locationKey": "adana-tren-gari",
+        "title": "Tarihi Adana Tren Garı",
+        "category": "Ulasim",
+        "latitude": 36.999,
+        "longitude": 35.321,
+        "description": ""
+      },
+      {
+        "locationKey": "balcali-otobus-ring",
+        "title": "Balcalı Otobüs Ring & Aktarma Alanı",
+        "category": "Ulasim",
+        "latitude": 37.053,
+        "longitude": 35.351,
+        "description": ""
+      },
+      {
+        "locationKey": "barajyolu-caddesi",
+        "title": "Barajyolu Gençlik Meydanı & Kafeler",
+        "category": "Sosyal",
+        "latitude": 37.025,
+        "longitude": 35.317,
+        "description": ""
+      },
+      {
+        "locationKey": "seyhan-baraj-golu",
+        "title": "Seyhan Baraj Gölü Sahili & Çamlık",
+        "category": "Sosyal",
+        "latitude": 37.045,
+        "longitude": 35.335,
+        "description": ""
+      },
+      {
+        "locationKey": "m1-adana-avm",
+        "title": "M1 Adana AVM & Real",
+        "category": "Sosyal",
+        "latitude": 36.992,
+        "longitude": 35.258,
+        "description": ""
+      },
+      {
+        "locationKey": "ataturk-parki-adana",
+        "title": "Atatürk Parkı & Gazipaşa Bulvarı",
+        "category": "Sosyal",
+        "latitude": 36.997,
+        "longitude": 35.324,
+        "description": ""
+      }
+    ]
+  },
+  {
+    "id": 22,
+    "name": "Ondokuz Mayıs Üniversitesi",
+    "city": "Samsun",
+    "lat": 41.3665,
+    "lng": 36.1925,
+    "zoom": 14,
+    "places": [
+      {
+        "locationKey": "omu-kurupelit",
+        "title": "Kurupelit Merkez Kampüsü (Rektörlük)",
+        "category": "Kampus",
+        "latitude": 41.3665,
+        "longitude": 36.1925,
+        "description": ""
+      },
+      {
+        "locationKey": "omu-tip-hastanesi",
+        "title": "OMÜ Tıp Fakültesi Hastanesi",
+        "category": "Kampus",
+        "latitude": 41.369,
+        "longitude": 36.195,
+        "description": ""
+      },
+      {
+        "locationKey": "omu-merkez-kutuphane",
+        "title": "OMÜ Merkez Kütüphanesi",
+        "category": "Kampus",
+        "latitude": 41.365,
+        "longitude": 36.191,
+        "description": ""
+      },
+      {
+        "locationKey": "karadeniz-kyk-samsun",
+        "title": "Karadeniz KYK Erkek Yurdu",
+        "category": "Yurt",
+        "latitude": 41.362,
+        "longitude": 36.198,
+        "description": ""
+      },
+      {
+        "locationKey": "munevver-ayasli-kyk",
+        "title": "Münevver Ayaşlı KYK Kız Yurdu",
+        "category": "Yurt",
+        "latitude": 41.359,
+        "longitude": 36.205,
+        "description": ""
+      },
+      {
+        "locationKey": "atakum-kyk-yurdu",
+        "title": "Atakum KYK Öğrenci Yurdu",
+        "category": "Yurt",
+        "latitude": 41.341,
+        "longitude": 36.255,
+        "description": ""
+      },
+      {
+        "locationKey": "omu-tramvay-durak",
+        "title": "OMÜ Tramvay Son Durak & Aktarma",
+        "category": "Ulasim",
+        "latitude": 41.368,
+        "longitude": 36.189,
+        "description": ""
+      },
+      {
+        "locationKey": "samsun-otogar",
+        "title": "Samsun Yusuf Ziya Yılmaz Şehirlerarası Otogar",
+        "category": "Ulasim",
+        "latitude": 41.272,
+        "longitude": 36.315,
+        "description": ""
+      },
+      {
+        "locationKey": "samsun-tren-gari",
+        "title": "Samsun Tarihi Tren Garı",
+        "category": "Ulasim",
+        "latitude": 41.288,
+        "longitude": 36.341,
+        "description": ""
+      },
+      {
+        "locationKey": "atakum-sahil-kafeler",
+        "title": "Atakum Sahil Şeridi & Öğrenci Kafeleri",
+        "category": "Sosyal",
+        "latitude": 41.332,
+        "longitude": 36.275,
+        "description": ""
+      },
+      {
+        "locationKey": "citymall-samsun",
+        "title": "CityMall AVM Atakum",
+        "category": "Sosyal",
+        "latitude": 41.328,
+        "longitude": 36.282,
+        "description": ""
+      },
+      {
+        "locationKey": "piazza-samsun",
+        "title": "Piazza AVM & Doğu Park",
+        "category": "Sosyal",
+        "latitude": 41.284,
+        "longitude": 36.355,
+        "description": ""
+      }
+    ]
+  },
+  {
+    "id": 23,
+    "name": "Erciyes Üniversitesi",
+    "city": "Kayseri",
+    "lat": 38.705,
+    "lng": 35.528,
+    "zoom": 14,
+    "places": [
+      {
+        "locationKey": "erces-merkez",
+        "title": "Merkez Kampüs (Talas Yolu / Rektörlük)",
+        "category": "Kampus",
+        "latitude": 38.705,
+        "longitude": 35.528,
+        "description": ""
+      },
+      {
+        "locationKey": "erces-gevher-nesibe",
+        "title": "Gevher Nesibe Tıp Fakültesi Hastanesi",
+        "category": "Kampus",
+        "latitude": 38.703,
+        "longitude": 35.525,
+        "description": ""
+      },
+      {
+        "locationKey": "erces-kutuphane",
+        "title": "Sabancı Kültür Sitesi & Kütüphane",
+        "category": "Kampus",
+        "latitude": 38.706,
+        "longitude": 35.531,
+        "description": ""
+      },
+      {
+        "locationKey": "gevher-nesibe-kiz-kyk",
+        "title": "Gevher Nesibe KYK Kız Yurdu",
+        "category": "Yurt",
+        "latitude": 38.702,
+        "longitude": 35.534,
+        "description": ""
+      },
+      {
+        "locationKey": "melikgazi-erkek-kyk",
+        "title": "Melikgazi KYK Erkek Öğrenci Yurdu",
+        "category": "Yurt",
+        "latitude": 38.709,
+        "longitude": 35.522,
+        "description": ""
+      },
+      {
+        "locationKey": "seyyid-burhaneddin-kyk",
+        "title": "Seyyid Burhaneddin KYK Yurdu",
+        "category": "Yurt",
+        "latitude": 38.712,
+        "longitude": 35.518,
+        "description": ""
+      },
+      {
+        "locationKey": "eru-tramvay",
+        "title": "ERÜ Tramvay İstasyonu",
+        "category": "Ulasim",
+        "latitude": 38.707,
+        "longitude": 35.526,
+        "description": ""
+      },
+      {
+        "locationKey": "kayseri-otogar",
+        "title": "Kayseri Şehirlerarası Otobüs Terminali",
+        "category": "Ulasim",
+        "latitude": 38.742,
+        "longitude": 35.438,
+        "description": ""
+      },
+      {
+        "locationKey": "kayseri-gari",
+        "title": "Kayseri Tren Garı",
+        "category": "Ulasim",
+        "latitude": 38.729,
+        "longitude": 35.476,
+        "description": ""
+      },
+      {
+        "locationKey": "talas-anayurt-kafeler",
+        "title": "Talas Anayurt Öğrenci Kafeleri",
+        "category": "Sosyal",
+        "latitude": 38.692,
+        "longitude": 35.552,
+        "description": ""
+      },
+      {
+        "locationKey": "kayseri-park-avm",
+        "title": "Kayseri Park AVM",
+        "category": "Sosyal",
+        "latitude": 38.721,
+        "longitude": 35.509,
+        "description": ""
+      },
+      {
+        "locationKey": "cumhuriyet-meydani-kayseri",
+        "title": "Cumhuriyet Meydanı & Kayseri Kalesi",
+        "category": "Sosyal",
+        "latitude": 38.722,
+        "longitude": 35.487,
+        "description": ""
+      }
+    ]
+  },
+  {
+    "id": 24,
+    "name": "Bilkent Üniversitesi",
+    "city": "Ankara",
+    "lat": 39.873,
+    "lng": 32.748,
+    "zoom": 14,
+    "places": [
+      {
+        "locationKey": "bilkent-merkez-kampus",
+        "title": "Bilkent Merkez Kampüs (Rektörlük)",
+        "category": "Kampus",
+        "latitude": 39.873,
+        "longitude": 32.748,
+        "description": ""
+      },
+      {
+        "locationKey": "bilkent-dogu-kampus",
+        "title": "Bilkent Doğu Kampüsü",
+        "category": "Kampus",
+        "latitude": 39.877,
+        "longitude": 32.756,
+        "description": ""
+      },
+      {
+        "locationKey": "bilkent-kutuphane",
+        "title": "Bilkent Merkez Kütüphanesi",
+        "category": "Kampus",
+        "latitude": 39.8705,
+        "longitude": 32.747,
+        "description": ""
+      },
+      {
+        "locationKey": "bilkent-yurtlar",
+        "title": "Bilkent Öğrenci Yurtları Kompleksi",
+        "category": "Yurt",
+        "latitude": 39.871,
+        "longitude": 32.744,
+        "description": ""
+      },
+      {
+        "locationKey": "bilkent-76-yurt",
+        "title": "76. Yurt Bölgesi",
+        "category": "Yurt",
+        "latitude": 39.874,
+        "longitude": 32.741,
+        "description": ""
+      },
+      {
+        "locationKey": "odtu-bilkent-kyk",
+        "title": "ODTÜ-Bilkent KYK Öğrenci Yurdu",
+        "category": "Yurt",
+        "latitude": 39.882,
+        "longitude": 32.761,
+        "description": ""
+      },
+      {
+        "locationKey": "bilkent-metro-istasyonu",
+        "title": "Bilkent Metro İstasyonu & Ring Durağı",
+        "category": "Ulasim",
+        "latitude": 39.905,
+        "longitude": 32.756,
+        "description": ""
+      },
+      {
+        "locationKey": "eskisehir-yolu-aktarma",
+        "title": "Eskişehir Yolu Otobüs Aktarma Noktası",
+        "category": "Ulasim",
+        "latitude": 39.907,
+        "longitude": 32.758,
+        "description": ""
+      },
+      {
+        "locationKey": "bilkent-center",
+        "title": "Bilkent Center & Ankuva AVM",
+        "category": "Sosyal",
+        "latitude": 39.886,
+        "longitude": 32.753,
+        "description": ""
+      },
+      {
+        "locationKey": "tepe-prime",
+        "title": "Tepe Prime Avenue Kafeler & Restoranlar",
+        "category": "Sosyal",
+        "latitude": 39.908,
+        "longitude": 32.763,
+        "description": ""
+      },
+      {
+        "locationKey": "maidan-carsi",
+        "title": "Maidan İş ve Yaşam Meydanı",
+        "category": "Sosyal",
+        "latitude": 39.911,
+        "longitude": 32.765,
+        "description": ""
+      }
+    ]
+  }
+];
+
+        const CATEGORY_COLORS = {
+            'Kampus': '#1D9DE5',
+            'Yurt': '#10B981',
+            'Ulasim': '#8B5CF6',
+            'Sosyal': '#F59E0B',
+            'Diger': '#6B7280'
+        };
+
+        function getCategoryColor(category) {
+            return CATEGORY_COLORS[category] || '#FF6A00';
+        }
+
+        // ==========================================
+        // 2. HARİTA OLUŞTURMA (ESRI WORLD STREET MAP)
+        // ==========================================
+        const defaultCenter = [30.5345, 37.8285]; // SDÜ Isparta varsayılan
+        const map = new maplibregl.Map({
+            container: "map",
+            style: {
+                version: 8,
+                sources: {
+                    'esri-tiles': {
+                        type: 'raster',
+                        tiles: [
+                            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}'
+                        ],
+                        tileSize: 256,
+                        attribution: '© Esri — Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom'
+                    }
+                },
+                layers: [
+                    { id: 'esri-tiles', type: 'raster', source: 'esri-tiles' }
+                ]
+            },
+            center: defaultCenter,
+            zoom: 14,
+            minZoom: 4,
+            maxZoom: 18,
+            renderWorldCopies: false
+        });
+
+        map.addControl(new maplibregl.NavigationControl(), "top-right");
+
+        let currentMarkers = [];
+        let currentLoadedPlaces = [];
+        let activeCategoryFilter = 'all';
+
+        // ==========================================
+        // 3. PİN VE ETİKETLERİ HARİTAYA ÇİZME
+        // ==========================================
+        function renderMarkers(places) {
+            currentMarkers.forEach(function(m) { m.remove(); });
+            currentMarkers = [];
+
+            if (!places || !Array.isArray(places)) return;
+
+            places.forEach(function(place) {
+                const category = place.category || place.Category || 'Kampus';
+                if (activeCategoryFilter !== 'all' && category !== activeCategoryFilter) {
+                    return;
+                }
+
+                const lat = place.latitude !== undefined ? place.latitude : 
+                            (place.Latitude !== undefined ? place.Latitude : 
+                            (place.coords ? place.coords[1] : null));
+                const lng = place.longitude !== undefined ? place.longitude : 
+                            (place.Longitude !== undefined ? place.Longitude : 
+                            (place.coords ? place.coords[0] : null));
+
+                if (lat == null || lng == null) return;
+
+                const coords = [parseFloat(lng), parseFloat(lat)];
+                const title = place.title || place.Title || place.location || place.Location || place.name || place.Name || 'Nokta';
+                const color = getCategoryColor(category);
+
+                // Tek bir birleşik Marker DOM kapsayıcısı
+                const markerContainer = document.createElement('div');
+                markerContainer.className = 'campus-marker';
+                markerContainer.setAttribute('role', 'button');
+                markerContainer.setAttribute('tabindex', '0');
+                markerContainer.setAttribute('aria-label', title + ' seç');
+
+                markerContainer.innerHTML = 
+                    '<div class="marker-tag">' +
+                        '<span class="cat-dot" style="background-color: ' + color + ';"></span>' +
+                        '<span class="tag-title">' + title + '</span>' +
+                    '</div>' +
+                    '<div class="marker-pin">' +
+                        '<svg class="pin-svg" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg">' +
+                            '<path d="M12 0C7 0 3.5 3.6 3.5 8.1c0 5.9 7.8 15.8 7.9 15.9.2-.1 7.9-10 7.9-15.9C20.5 3.6 17 0 12 0z" fill="' + color + '" stroke="#ffffff" stroke-width="1.6"/>' +
+                            '<circle cx="12" cy="8.1" r="3.2" fill="#ffffff"/>' +
+                        '</svg>' +
+                    '</div>';
+
+                function onSelect(e) {
+                    if (e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }
+                    sendLocationSelection(place);
+                }
+
+                markerContainer.addEventListener('click', onSelect);
+                markerContainer.addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        onSelect(e);
+                    }
+                });
+
+                // MapLibre Marker: anchor: 'bottom' ile tam pin ucundan konuma kenetlenir
+                const marker = new maplibregl.Marker({
+                    element: markerContainer,
+                    anchor: 'bottom'
+                })
+                    .setLngLat(coords)
+                    .addTo(map);
+
+                currentMarkers.push(marker);
+            });
+        }
+
+        // ==========================================
+        // 4. KONUM SEÇİMİ VE C# İLETİŞİMİ
+        // ==========================================
+        function sendLocationSelection(place) {
+            const title = place.title || place.Title || place.location || place.Location || place.name || place.Name || '';
+            const key = place.locationKey || place.LocationKey || place.key || place.Key || '';
+            const lat = place.latitude !== undefined ? parseFloat(place.latitude) : 
+                        (place.Latitude !== undefined ? parseFloat(place.Latitude) : 
+                        (place.coords ? parseFloat(place.coords[1]) : 0));
+            const lng = place.longitude !== undefined ? parseFloat(place.longitude) : 
+                        (place.Longitude !== undefined ? parseFloat(place.Longitude) : 
+                        (place.coords ? parseFloat(place.coords[0]) : 0));
+
+            const payload = {
+                type: 'locationSelected',
+                locationKey: key,
+                location: title,
+                latitude: lat,
+                longitude: lng
+            };
+
+            const jsonStr = JSON.stringify(payload);
+            const encoded = encodeURIComponent(jsonStr);
+
+            // 1. Windows WebView2 postMessage
+            try {
+                if (window.chrome && window.chrome.webview && window.chrome.webview.postMessage) {
+                    window.chrome.webview.postMessage(jsonStr);
+                }
+            } catch (e) { }
+
+            // 2. URL Navigation (Windows / Android / iOS MAUI Navigating Intercept)
+            try {
+                window.location.href = 'https://kampusrota.local/locationSelected?data=' + encoded;
+            } catch (e) { }
+        }
+
+        // ==========================================
+        // 5. ÜNİVERSİTE DEĞİŞTİRME & ODAKLANMA
+        // ==========================================
+        function focusAndLoadUniversity(uni) {
+            if (!uni) return;
+
+            map.flyTo({
+                center: [uni.lng, uni.lat],
+                zoom: uni.zoom || 14,
+                speed: 1.5,
+                essential: true
+            });
+
+            currentLoadedPlaces = uni.places || [];
+            renderMarkers(currentLoadedPlaces);
+        }
+
+        function filterCategory(cat, btn) {
+            activeCategoryFilter = cat;
+            document.querySelectorAll('.filter-bar .pill').forEach(function(p) { p.classList.remove('active'); });
+            if (btn) btn.classList.add('active');
+            renderMarkers(currentLoadedPlaces);
+        }
+
+        // ==========================================
+        // 6. DIŞARIDAN (C# MAUI) ÇAĞRILAN METOTLAR
+        // ==========================================
+        let currentUniId = null;
+
+        window.selectUniversityById = function (id) {
+            currentUniId = id;
+            if (!window.mapReady) {
+                return true;
+            }
+            const uni = CAMPUS_CATALOG.find(function(u) { return String(u.id) === String(id); });
+            if (uni) {
+                focusAndLoadUniversity(uni);
+                return true;
+            }
+            return false;
+        };
+
+        window.focusUniversity = function (lat, lng, zoom) {
+            try {
+                lat = parseFloat(lat);
+                lng = parseFloat(lng);
+                zoom = zoom ? parseInt(zoom) : 14;
+                map.flyTo({ center: [lng, lat], zoom: zoom, speed: 1.3, essential: true });
+            } catch (e) { }
+        };
+
+        window.loadCampusPlaces = function (places) {
+            try {
+                while (typeof places === 'string') {
+                    places = JSON.parse(places);
+                }
+                if (places && Array.isArray(places) && places.length > 0) {
+                    currentLoadedPlaces = places;
+                    renderMarkers(currentLoadedPlaces);
+                }
+            } catch (e) { }
+        };
+
+        // ==========================================
+        // 7. HARİTA BAŞLATMA
+        // ==========================================
+        map.on('load', function () {
+            window.mapReady = true;
+
+            if (currentUniId) {
+                window.selectUniversityById(currentUniId);
+            } else {
+                window.selectUniversityById(1);
+            }
+            console.log('KampusRota MapLibre 18 Universities Ready');
+        });
+    </script>
+</body>
+
+</html>
