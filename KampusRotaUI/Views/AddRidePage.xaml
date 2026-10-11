@@ -30,7 +30,7 @@
                                 StrokeThickness="1"
                                 StrokeShape="RoundRectangle 16"
                                 Padding="12,8">
-                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" VerticalOptions="Center">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16" VerticalOptions="Center">
                                 <Label Text="🎓" FontSize="18" VerticalOptions="Center" />
                                 <VerticalStackLayout Grid.Column="1" Spacing="1" VerticalOptions="Center">
                                     <Label Text="İlan Verilen Kampüs" FontSize="10" TextColor="#6B7280" />
@@ -44,7 +44,7 @@
                                         TextColor="#1D9DE5"
                                         FontAttributes="Bold"
                                         FontSize="9"
-                                        HeightRequest="45"
+                                        HeightRequest="36"
                                         VerticalOptions="Center" />
                             </Grid>
                         </Border>
