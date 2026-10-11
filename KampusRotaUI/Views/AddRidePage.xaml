@@ -43,8 +43,8 @@
                                         SelectedIndexChanged="OnFormUniversityPickerChanged"
                                         TextColor="#1D9DE5"
                                         FontAttributes="Bold"
-                                        FontSize="10"
-                                        HeightRequest="39"
+                                        FontSize="9"
+                                        HeightRequest="45"
                                         VerticalOptions="Center" />
                             </Grid>
                         </Border>
