@@ -221,13 +221,33 @@ public partial class MainPage : ContentPage
 
     private void OnCloseMapClicked(object sender, EventArgs e)
     {
-        if (_returnToSearchAfterMap)
+        MainThread.BeginInvokeOnMainThread(() =>
         {
-            ShowSearchView();
-            return;
+            if (_returnToSearchAfterMap)
+            {
+                ShowSearchView();
+                return;
+            }
+
+            ShowListView();
+        });
+    }
+
+    protected override bool OnBackButtonPressed()
+    {
+        if (MapContainer.IsVisible)
+        {
+            OnCloseMapClicked(this, EventArgs.Empty);
+            return true;
         }
 
-        ShowListView();
+        if (SearchViewContainer.IsVisible)
+        {
+            ShowListView();
+            return true;
+        }
+
+        return base.OnBackButtonPressed();
     }
 
     protected override async void OnAppearing()

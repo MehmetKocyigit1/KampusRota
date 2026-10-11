@@ -433,7 +433,21 @@ public partial class AddRidePage : ContentPage
 
     private void OnCloseMapClicked(object sender, EventArgs e)
     {
-        ShowFormView();
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            ShowFormView();
+        });
+    }
+
+    protected override bool OnBackButtonPressed()
+    {
+        if (MapContainer.IsVisible)
+        {
+            ShowFormView();
+            return true;
+        }
+
+        return base.OnBackButtonPressed();
     }
 
     private async void OnWomenOnlyChanged(object sender, CheckedChangedEventArgs e)
